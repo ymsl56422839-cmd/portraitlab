@@ -26,7 +26,7 @@ def layout():
     base = checked(os.environ.get('PORTRAITLAB_WORK', base))
     data = checked(os.environ.get('PORTRAITLAB_DATA', base / 'runtime'))
     paths = {'base': base, 'data': data, 'venv': checked(base / 'venv'),
-             'temp': checked(base / 'temp'), 'cache': checked(base / 'cache')}
+             'temp': checked(base / 'temp'), 'cache': checked(os.environ.get('PORTRAITLAB_CACHE', base / 'cache'))}
     for path in paths.values():
         checked(path).mkdir(parents=True, exist_ok=True)
     return paths

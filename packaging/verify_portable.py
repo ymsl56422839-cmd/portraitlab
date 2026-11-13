@@ -160,7 +160,7 @@ print(json.dumps({"executable":sys.executable,"base_prefix":sys.base_prefix,"sys
         result["version"] = boot["version"]
         result["models"] = boot["models"]
         if not args.core_only:
-            api_ai = call(base + "/api/relight/status?probe=true")
+            api_ai = call(base + "/api/relight/status?probe=true", token)
             if not api_ai.get("runtime_ready") or not api_ai.get("ready") or not api_ai.get("hardware_checked"):
                 raise RuntimeError("Packaged server could not start its bundled AI worker: " + str(api_ai))
             if not (moved / "Cache/ai").is_dir():
