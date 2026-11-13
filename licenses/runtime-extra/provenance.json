@@ -1,0 +1,90 @@
+{
+  "reviewed_on": "2026-11-13",
+  "reason": "Supplement missing license texts in installed wheel metadata using exact upstream release versions. SentencePiece bundled third-party license files are retained. Safetensors and Tokenizers texts match both the official version tag and the hash-verified PyPI source release.",
+  "package_metadata_sources": [
+    "https://pypi.org/pypi/flatbuffers/25.12.19/json",
+    "https://pypi.org/pypi/sentencepiece/0.2.3/json",
+    "https://pypi.org/pypi/safetensors/0.4.5/json",
+    "https://pypi.org/pypi/tokenizers/0.15.2/json"
+  ],
+  "files": [
+    {
+      "file": "flatbuffers-25.12.19-LICENSE.txt",
+      "package": "flatbuffers",
+      "version": "25.12.19",
+      "repository": "https://github.com/google/flatbuffers",
+      "upstream_tag": "v25.12.19",
+      "upstream_commit": "7e163021e59cca4f8e1e35a7c828b5c6b7915953",
+      "source_path": "LICENSE",
+      "url": "https://raw.githubusercontent.com/google/flatbuffers/7e163021e59cca4f8e1e35a7c828b5c6b7915953/LICENSE",
+      "bytes": 11358,
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+    },
+    {
+      "file": "sentencepiece-0.2.3-LICENSE.txt",
+      "package": "sentencepiece",
+      "version": "0.2.3",
+      "repository": "https://github.com/google/sentencepiece",
+      "upstream_tag": "v0.2.3",
+      "upstream_commit": "eafd99cf3b8bfa5101c2c5f42aab2cc39947938d",
+      "source_path": "LICENSE",
+      "url": "https://raw.githubusercontent.com/google/sentencepiece/eafd99cf3b8bfa5101c2c5f42aab2cc39947938d/LICENSE",
+      "bytes": 11358,
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+    },
+    {
+      "file": "sentencepiece-0.2.3-darts-clone-LICENSE.txt",
+      "package": "sentencepiece",
+      "version": "0.2.3",
+      "repository": "https://github.com/google/sentencepiece",
+      "upstream_tag": "v0.2.3",
+      "upstream_commit": "eafd99cf3b8bfa5101c2c5f42aab2cc39947938d",
+      "source_path": "third_party/darts_clone/LICENSE",
+      "url": "https://raw.githubusercontent.com/google/sentencepiece/eafd99cf3b8bfa5101c2c5f42aab2cc39947938d/third_party/darts_clone/LICENSE",
+      "bytes": 1481,
+      "sha256": "155f59997298ee336602c49f9c1110f268ac394ca2197eb02647a3555935ad52"
+    },
+    {
+      "file": "sentencepiece-0.2.3-libsais-LICENSE.txt",
+      "package": "sentencepiece",
+      "version": "0.2.3",
+      "repository": "https://github.com/google/sentencepiece",
+      "upstream_tag": "v0.2.3",
+      "upstream_commit": "eafd99cf3b8bfa5101c2c5f42aab2cc39947938d",
+      "source_path": "third_party/libsais/LICENSE",
+      "url": "https://raw.githubusercontent.com/google/sentencepiece/eafd99cf3b8bfa5101c2c5f42aab2cc39947938d/third_party/libsais/LICENSE",
+      "bytes": 10757,
+      "sha256": "e38f5960984c2350dba530a89395789c0ea6039a1b551511b478b94dec1d5dfa"
+    },
+    {
+      "file": "safetensors-0.4.5-LICENSE.txt",
+      "package": "safetensors",
+      "version": "0.4.5",
+      "repository": "https://github.com/huggingface/safetensors",
+      "upstream_tag": "v0.4.5",
+      "source_path": "LICENSE",
+      "url": "https://raw.githubusercontent.com/huggingface/safetensors/v0.4.5/LICENSE",
+      "source_distribution": "https://files.pythonhosted.org/packages/cb/46/a1c56ed856c6ac3b1a8b37abe5be0cac53219367af1331e721b04d122577/safetensors-0.4.5.tar.gz",
+      "source_distribution_sha256": "d73de19682deabb02524b3d5d1f8b3aaba94c72f1bbfc7911b9b9d5d391c0310",
+      "source_distribution_member": "safetensors-0.4.5/safetensors/LICENSE",
+      "matches_official_tag_bytes": true,
+      "bytes": 11357,
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+    },
+    {
+      "file": "tokenizers-0.15.2-LICENSE.txt",
+      "package": "tokenizers",
+      "version": "0.15.2",
+      "repository": "https://github.com/huggingface/tokenizers",
+      "upstream_tag": "v0.15.2",
+      "source_path": "LICENSE",
+      "url": "https://raw.githubusercontent.com/huggingface/tokenizers/v0.15.2/LICENSE",
+      "source_distribution": "https://files.pythonhosted.org/packages/c0/44/625db94e91c6196b6574359fa70bfe28e8eabf57a1b894f8f0ec69727fd1/tokenizers-0.15.2.tar.gz",
+      "source_distribution_sha256": "e6e9c6e019dd5484be5beafc775ae6c925f4c69a3487040ed09b45e13df2cb91",
+      "source_distribution_member": "tokenizers-0.15.2/tokenizers/LICENSE",
+      "matches_official_tag_bytes": true,
+      "bytes": 11357,
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+    }
+  ]
+}

@@ -25,7 +25,8 @@ class Adapter:
         path = models_dir / manifest.id / manifest.source["filename"]
         self.segmenter = vision.ImageSegmenter.create_from_options(
             vision.ImageSegmenterOptions(
-                base_options=BaseOptions(model_asset_path=str(path)),
+                # PortraitLab 0.2: Python handles Unicode paths reliably on Windows.
+                base_options=BaseOptions(model_asset_buffer=path.read_bytes()),
                 running_mode=vision.RunningMode.IMAGE,
                 output_confidence_masks=True,
                 output_category_mask=False,

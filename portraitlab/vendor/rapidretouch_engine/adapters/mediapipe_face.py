@@ -29,7 +29,8 @@ class Adapter:
         path = models_dir / manifest.id / manifest.source["filename"]
         self.landmarker = vision.FaceLandmarker.create_from_options(
             vision.FaceLandmarkerOptions(
-                base_options=BaseOptions(model_asset_path=str(path)),
+                # PortraitLab 0.2: Python handles Unicode paths reliably on Windows.
+                base_options=BaseOptions(model_asset_buffer=path.read_bytes()),
                 num_faces=MAX_FACES,
                 running_mode=vision.RunningMode.IMAGE,
             )

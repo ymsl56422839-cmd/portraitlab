@@ -1,7 +1,7 @@
 """PortraitLab CPU portrait engine. SPDX-License-Identifier: AGPL-3.0-only.
 
-RapidRetouch algorithms and MediaPipe adapters are vendored unchanged beside
-this module. This wrapper adds validation, explicit model provenance, masks,
+RapidRetouch algorithms are vendored beside this module. MediaPipe adapters
+load model bytes to support Unicode paths. This wrapper adds provenance, masks,
 and the small PortraitLab parameter contract. Importing it never downloads or
 writes files. Inputs and outputs are sRGB-encoded uint8 RGB arrays.
 """
@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import math
+import os
 from numbers import Real
 from pathlib import Path
 import threading
@@ -212,9 +213,9 @@ def _body_regions(rgb: np.ndarray, faces: list[np.ndarray], parts: dict) -> list
 class Engine:
     def __init__(self, models_dir: Path):
         self.models_dir = Path(models_dir).resolve()
-        allowed = Path("F:/codex").resolve()
-        if allowed.drive.lower() != "f:" or not self.models_dir.is_relative_to(allowed):
-            raise ValueError("模型目录必须解析到 F:\\codex 内")
+        configured = os.environ.get("PORTRAITLAB_STORAGE_ROOT")
+        if configured and not self.models_dir.is_relative_to(Path(configured).expanduser().resolve()):
+            raise ValueError("模型目录不在此安装配置允许的存储目录内")
         self._face_adapter = None
         self._parts_adapter = None
         self._verified: dict[str, str] = {}
@@ -227,7 +228,7 @@ class Engine:
             exists = path.is_file() and path.is_relative_to(self.models_dir)
             records[model_id] = {**spec, "path": str(path), "exists": exists, "verified": self._verified.get(model_id) == spec["sha256"]}
             if not exists:
-                errors.append(f"缺少模型：{model_id}；请先运行项目的模型准备脚本")
+                errors.append(f"缺少模型：{model_id}；请在工作台左下角“处理模型”中下载并校验")
         return {"ready": not errors, "loaded": self._face_adapter is not None and self._parts_adapter is not None, "models": records, "errors": errors}
 
     def _ensure_models(self) -> None:

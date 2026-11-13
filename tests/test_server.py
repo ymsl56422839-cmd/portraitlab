@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 
 from portraitlab import engine
 from portraitlab import server
-from portraitlab.server import create_app, inside_f, validate_strokes
+from portraitlab.server import create_app, writable_path, validate_strokes
 
 
 class FakeEngine:
@@ -26,7 +26,7 @@ class FakeEngine:
         self.calls += 1
         h, w = rgb.shape[:2]
         return {"faces": [], "face_count": 0, "shape": [h, w], "source_shape": [h, w],
-                "parts": {}, "face_mask": np.ones((h, w), np.float32),
+                "parts": {"background": np.zeros((h // 2, w // 2), np.float32)}, "face_mask": np.ones((h, w), np.float32),
                 "skin_mask": np.ones((h, w), np.float32), "mask": np.ones((h, w), np.float32),
                 "warnings": [], "models": {"test": "synthetic"}}
 
@@ -37,7 +37,7 @@ class FakeEngine:
 
 @pytest.fixture
 def api(tmp_path, monkeypatch):
-    inside_f(tmp_path)
+    monkeypatch.setenv("PORTRAITLAB_STORAGE_ROOT", str(tmp_path))
     monkeypatch.setattr(engine, "Engine", FakeEngine)
     app = create_app(tmp_path / "data")
     client = TestClient(app, base_url="http://127.0.0.1:18765", raise_server_exceptions=False)
@@ -46,6 +46,7 @@ def api(tmp_path, monkeypatch):
     token = bootstrap.json()["token"]
     client.headers["X-PortraitLab-Token"] = token
     yield client, app
+    app.state.store.relight.close()
     app.state.store.queue.put(None)
     client.close()
 
@@ -138,7 +139,7 @@ def test_bad_formats_parameters_and_output_paths(api):
     assert rejected.json()["photos"] == []
     assert len(rejected.json()["errors"]) == 1
     with pytest.raises(ValueError):
-        inside_f("F:/codex/../outside")
+        writable_path("F:/codex/../outside")
 
 
 def test_masks_persist_and_settings_do_not_copy_strokes(api):

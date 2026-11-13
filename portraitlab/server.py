@@ -1,7 +1,7 @@
 """Local-only API, persistence and sequential export queue for PortraitLab.
 
 Run ``python -B -m portraitlab.server``. No model or dependency is downloaded.
-All files created by this service must resolve beneath F:/codex.
+PORTRAITLAB_STORAGE_ROOT optionally restricts writable paths for an installation.
 """
 from __future__ import annotations
 
@@ -24,6 +24,7 @@ from pathlib import Path
 import queue
 import re
 import secrets
+import shutil
 import stat
 import tempfile
 import threading
@@ -40,7 +41,6 @@ from starlette.concurrency import run_in_threadpool
 from . import __version__
 
 APP_ROOT = Path(__file__).resolve().parents[1]
-F_ROOT = Path("F:/codex").resolve()
 MAX_FILE_BYTES = 100 * 1024 * 1024
 MAX_REQUEST_BYTES = 512 * 1024 * 1024
 MAX_PIXELS = 80_000_000
@@ -58,10 +58,16 @@ def now() -> str:
     return datetime.now(timezone(timedelta(hours=8))).isoformat(timespec="seconds")
 
 
-def inside_f(path: str | Path) -> Path:
+def writable_path(path: str | Path) -> Path:
+    """Resolve a write target and apply an optional installation storage policy."""
     result = Path(path).expanduser().resolve()
-    if F_ROOT.drive.lower() != "f:" or result == F_ROOT or not result.is_relative_to(F_ROOT):
-        raise ValueError("文件位置必须位于 F:\\codex 文件夹内。")
+    configured = os.environ.get("PORTRAITLAB_STORAGE_ROOT")
+    if result == Path(result.anchor):
+        raise ValueError("请使用专用数据文件夹，不能直接使用磁盘根目录。")
+    if configured:
+        root = Path(configured).expanduser().resolve()
+        if result == root or not result.is_relative_to(root):
+            raise ValueError("文件位置不在此安装配置允许的存储目录内。")
     return result
 
 
@@ -80,20 +86,35 @@ def json_value(value: Any) -> Any:
 
 
 def atomic_write(path: Path, writer: Any, *, replace: bool = True) -> None:
-    path = inside_f(path)
-    inside_f(path.parent / "checked").parent.mkdir(parents=True, exist_ok=True)
-    temporary = inside_f(path.parent / ("." + path.name + "." + uuid.uuid4().hex + ".tmp"))
+    path = writable_path(path)
+    writable_path(path.parent / "checked").parent.mkdir(parents=True, exist_ok=True)
+    temporary = writable_path(path.parent / ("." + path.name + "." + uuid.uuid4().hex + ".tmp"))
     try:
         writer(temporary)
-        inside_f(path)
+        writable_path(path)
         if replace:
             os.replace(temporary, path)
         else:
-            os.link(temporary, path)
+            try:
+                os.link(temporary, path)
+            except FileExistsError:
+                raise
+            except OSError:
+                # exFAT and some removable/network volumes do not support links.
+                created = False
+                try:
+                    with path.open("xb") as target:
+                        created = True
+                        with temporary.open("rb") as source:
+                            shutil.copyfileobj(source, target)
+                except Exception:
+                    if created:
+                        path.unlink(missing_ok=True)
+                    raise
             temporary.unlink()
     finally:
         if temporary.exists():
-            inside_f(temporary).unlink()
+            writable_path(temporary).unlink()
 
 
 def write_json(path: Path, value: Any, *, replace: bool = True) -> None:
@@ -188,20 +209,23 @@ def safe_stem(name: str) -> str:
 
 class PortraitStore:
     def __init__(self, data_dir: Path):
-        self.data = inside_f(data_dir)
+        self.data = writable_path(data_dir)
         self.data.mkdir(parents=True, exist_ok=True)
-        self.folders = {key: inside_f(self.data / key) for key in ("uploads", "cache", "previews", "exports", "models", "temp", "logs")}
+        self.folders = {key: writable_path(self.data / key) for key in ("uploads", "cache", "previews", "exports", "models", "temp", "logs")}
+        self.runtime_cache = writable_path(os.environ.get("PORTRAITLAB_CACHE", self.data / "runtime-cache"))
+        self.runtime_cache.mkdir(parents=True, exist_ok=True)
+        self.folders["temp"] = writable_path(self.runtime_cache / "temp")
         for folder in self.folders.values():
-            folder.mkdir(exist_ok=True)
+            folder.mkdir(parents=True, exist_ok=True)
         os.environ["TEMP"] = os.environ["TMP"] = str(self.folders["temp"])
         os.environ["PYTHONDONTWRITEBYTECODE"] = "1"
         tempfile.tempdir = str(self.folders["temp"])
         if not LOGGER.handlers:
-            handler = logging.FileHandler(inside_f(self.folders["logs"] / "server.log"), encoding="utf-8")
+            handler = logging.FileHandler(writable_path(self.folders["logs"] / "server.log"), encoding="utf-8")
             handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
             LOGGER.addHandler(handler)
             LOGGER.setLevel(logging.INFO)
-        self.state_path = inside_f(self.data / "state.json")
+        self.state_path = writable_path(self.data / "state.json")
         self.lock, self.engine_lock = threading.RLock(), threading.RLock()
         self.photo_locks: dict[str, threading.Lock] = {}
         self.analysis_cache: OrderedDict[str, dict] = OrderedDict()
@@ -233,6 +257,11 @@ class PortraitStore:
         self.queue: queue.Queue[str | None] = queue.Queue()
         self.worker = threading.Thread(target=self._work_loop, name="portraitlab-export", daemon=True)
         self.worker.start()
+        from .relight_service import RelightController
+        self.relight = RelightController(self, checked=writable_path, save_json=write_json,
+                                         save_image=write_image, timestamp=now, app_root=APP_ROOT)
+        from .model_setup import ModelSetup
+        self.model_setup = ModelSetup(self.engine, self.engine_module.MODEL_SPECS, writable_path)
         self.persist()
 
     def persist(self) -> None:
@@ -252,9 +281,12 @@ class PortraitStore:
             raise HTTPException(404, "未找到这张照片。")
 
     def public_photo(self, photo: dict) -> dict:
-        out = {k: photo.get(k) for k in ("id", "name", "width", "height", "face_count", "status", "params", "warnings", "version", "strokes")}
+        out = {k: photo.get(k) for k in ("id", "name", "width", "height", "face_count", "status", "params", "warnings", "version", "strokes", "generation")}
         prefix = f"/api/photos/{photo['id']}/image"
         out["original_url"] = prefix + "?kind=original"
+        if photo.get("generation_input_preview_path"):
+            out["original_url"] = prefix + "?kind=input"
+            out["comparison_kind"] = "generation_input"
         out["preview_url"] = prefix + (f"?kind=preview&v={photo.get('preview_version', 0)}" if photo.get("preview_path") else "?kind=original")
         out["mask_url"] = prefix + f"?kind=mask&v={photo.get('preview_version', 0)}" if photo.get("mask_path") else None
         return json_value(out)
@@ -264,8 +296,8 @@ class PortraitStore:
 
     def add_photo(self, photo_id: str, name: str, raw_path: Path, sha: str) -> dict:
         image, color = decode_source(raw_path)
-        normalized = inside_f(self.folders["cache"] / (photo_id + ".source.png"))
-        original_preview = inside_f(self.folders["previews"] / (photo_id + ".original.jpg"))
+        normalized = writable_path(self.folders["cache"] / (photo_id + ".source.png"))
+        original_preview = writable_path(self.folders["previews"] / (photo_id + ".original.jpg"))
         write_image(normalized, image, "PNG", replace=False)
         thumb = image.copy()
         thumb.thumbnail((PREVIEW_SIDE, PREVIEW_SIDE), Image.Resampling.LANCZOS)
@@ -281,8 +313,36 @@ class PortraitStore:
             self.persist()
             return self.public_photo(photo)
 
+    def add_generated(self, source: Path, source_name: str, provenance: dict, input_path: Path) -> dict:
+        photo_id = uuid.uuid4().hex
+        raw = writable_path(self.folders["uploads"] / (photo_id + ".png"))
+        content = source.read_bytes()
+        atomic_write(raw, lambda p: p.write_bytes(content), replace=False)
+        self.add_photo(photo_id, safe_stem(source_name) + " · AI重打光.png", raw, hashlib.sha256(content).hexdigest())
+        with self.lock:
+            photo = self.photo(photo_id)
+            # The generated image starts without a second, implicit beauty pass.
+            photo["params"] = {**self.defaults, "smooth": 0.0, "blemishes": 0.0,
+                               "even": 0.0, "texture": 0.0, "opacity": 1.0}
+            photo["generation"] = provenance
+            comparison = writable_path(self.folders["previews"] / (photo_id + ".input.jpg"))
+            with Image.open(input_path) as original:
+                meta = provenance.get("metadata", {})
+                resized, box = meta.get("resize_before_center_crop"), meta.get("crop_box")
+                if resized and box:
+                    before = original.convert("RGB").resize(tuple(resized), Image.Resampling.LANCZOS).crop(tuple(box))
+                else:
+                    before = ImageOps.fit(original.convert("RGB"), (photo["width"], photo["height"]), Image.Resampling.LANCZOS)
+                before.thumbnail((PREVIEW_SIDE, PREVIEW_SIDE), Image.Resampling.LANCZOS)
+                write_image(comparison, before, "JPEG", replace=False)
+            photo["generation_input_preview_path"] = str(comparison)
+            photo["source_warnings"].append("AI 生成结果：可能改变五官、发丝、衣物或背景，请逐张检查。")
+            photo["warnings"] = list(photo["source_warnings"])
+            self.persist()
+            return self.public_photo(photo)
+
     def rgb(self, photo: dict) -> np.ndarray:
-        source = inside_f(photo["source_path"])
+        source = writable_path(photo["source_path"])
         if not source.is_relative_to(self.data):
             raise ValueError("照片缓存路径不属于当前工作区。")
         with Image.open(source) as image:
@@ -294,7 +354,7 @@ class PortraitStore:
             if key in self.analysis_cache:
                 self.analysis_cache.move_to_end(key)
                 return self.analysis_cache[key]
-            cached = inside_f(self.folders["cache"] / (key + ".analysis.npz"))
+            cached = writable_path(self.folders["cache"] / (key + ".analysis.npz"))
             result = None
             # Engine hashes are checked on analyze; disk cache additionally records source and model file fingerprints.
             fingerprint = self.model_fingerprint()
@@ -370,8 +430,8 @@ class PortraitStore:
                 with self.engine_lock:
                     output, meta = self.engine.render(preview, snapshot["params"], analysis, strokes=snapshot["strokes"])
                     mask = self.engine_module.mask_for(analysis, preview.shape[:2], snapshot["strokes"], region=snapshot["params"].get("region", "face"))
-                preview_path = inside_f(self.folders["previews"] / f"{photo_id}.{requested_version}.jpg")
-                mask_path = inside_f(self.folders["previews"] / f"{photo_id}.{requested_version}.mask.png")
+                preview_path = writable_path(self.folders["previews"] / f"{photo_id}.{requested_version}.jpg")
+                mask_path = writable_path(self.folders["previews"] / f"{photo_id}.{requested_version}.mask.png")
                 with self.lock:
                     current = self.photo(photo_id)
                     if current["version"] != requested_version:
@@ -388,7 +448,7 @@ class PortraitStore:
                 for old in old_paths:
                     if old and old not in (str(preview_path), str(mask_path)):
                         try:
-                            path = inside_f(old)
+                            path = writable_path(old)
                             if path.parent == self.folders["previews"]:
                                 path.unlink(missing_ok=True)
                         except OSError:
@@ -410,8 +470,8 @@ class PortraitStore:
             raise ValueError("最长边须为 0（原尺寸），或 64～30000 的整数。")
         job_id = uuid.uuid4().hex
         if output_dir is not None and not isinstance(output_dir, str):
-            raise ValueError("导出位置必须是 F 盘目录字符串。")
-        destination = inside_f(output_dir) if output_dir else inside_f(self.folders["exports"] / (datetime.now(timezone(timedelta(hours=8))).strftime("%Y%m%d-%H%M%S") + "-" + job_id[:6]))
+            raise ValueError("导出位置必须是目录字符串。")
+        destination = writable_path(output_dir) if output_dir else writable_path(self.folders["exports"] / (datetime.now(timezone(timedelta(hours=8))).strftime("%Y%m%d-%H%M%S") + "-" + job_id[:6]))
         with self.lock:
             snapshots = [json.loads(json.dumps(self.photo(i))) for i in ids]
             destination.mkdir(parents=True, exist_ok=True)
@@ -458,14 +518,14 @@ class PortraitStore:
                 rgb = resize_rgb(rgb, job["max_side"])
                 with self.engine_lock:
                     output, meta = self.engine.render(rgb, snapshot["params"], analysis, strokes=snapshot.get("strokes", []))
-                directory = inside_f(job["output_dir"])
+                directory = writable_path(job["output_dir"])
                 extension, pil_format = {"jpg": ("jpg", "JPEG"), "png": ("png", "PNG"), "tiff": ("tiff", "TIFF")}[job["format"]]
                 stem = f"{safe_stem(snapshot['name'])}-{snapshot['id'][:8]}-{job_id[:6]}"
                 number = 0
                 while True:
                     name = stem + (f"-{number}" if number else "") + "." + extension
-                    destination = inside_f(directory / name)
-                    sidecar = inside_f(directory / (name + ".json"))
+                    destination = writable_path(directory / name)
+                    sidecar = writable_path(directory / (name + ".json"))
                     if destination.exists() or sidecar.exists():
                         number += 1
                         continue
@@ -480,7 +540,8 @@ class PortraitStore:
                             "output_dimensions": [output.shape[1], output.shape[0]], "output_precision": "8-bit RGB",
                             "output_color_space": "sRGB", "source_color": snapshot.get("color"),
                             "params": snapshot["params"], "strokes": snapshot.get("strokes", []),
-                            "models": analysis.get("models"), "engine_meta": meta}
+                            "models": analysis.get("models"), "engine_meta": meta,
+                            "generation": snapshot.get("generation")}
                 write_json(sidecar, metadata, replace=False)
                 item_result = {"status": "completed", "path": str(destination), "sidecar": str(sidecar), "meta": json_value(meta)}
                 del rgb, output
@@ -507,10 +568,21 @@ class PortraitStore:
 def create_app(data_dir: Path | None = None, port: int = 18765) -> FastAPI:
     if not 1024 <= port <= 65535:
         raise ValueError("服务端口必须在 1024～65535 之间。")
-    data = data_dir or Path(os.environ.get("PORTRAITLAB_DATA", str(APP_ROOT.parents[1] / "work/portraitlab/runtime")))
+    data = data_dir or Path(os.environ.get("PORTRAITLAB_DATA", str(APP_ROOT / ".local/runtime")))
     store = PortraitStore(data)
     token = secrets.token_urlsafe(32)
+    @asynccontextmanager
+    async def lifespan(app):
+        yield
+        store.model_setup.close()
+        store.relight.close()
+        store.queue.put(None)
+        store.worker.join(timeout=10)
+        close_engine = getattr(store.engine, "close", None)
+        if close_engine:
+            close_engine()
     app = FastAPI(title="PortraitLab", docs_url=None, redoc_url=None, openapi_url=None,
+                  lifespan=lifespan,
                   telemetry={"tracing": False, "metrics": False, "logs": False,
                              "operation_spans": False, "auto_configure": False})
     app.state.store, app.state.token, app.state.port = store, token, port
@@ -575,7 +647,7 @@ def create_app(data_dir: Path | None = None, port: int = 18765) -> FastAPI:
     @app.exception_handler(Exception)
     async def unexpected_error(request, exc):
         LOGGER.exception("Unhandled request error", exc_info=exc)
-        return JSONResponse({"detail": "处理失败，详情已写入 F 盘工作区日志。"}, status_code=500)
+        return JSONResponse({"detail": "处理失败，详情已写入工作区日志。"}, status_code=500)
 
     async def body(request: Request) -> dict:
         try:
@@ -627,7 +699,7 @@ def create_app(data_dir: Path | None = None, port: int = 18765) -> FastAPI:
                     if suffix not in SOURCE_EXTENSIONS:
                         raise ValueError("文件扩展名不受支持。")
                     photo_id = uuid.uuid4().hex
-                    raw_path = inside_f(store.folders["uploads"] / (photo_id + suffix))
+                    raw_path = writable_path(store.folders["uploads"] / (photo_id + suffix))
                     sha, size = hashlib.sha256(), 0
                     with raw_path.open("xb") as target:
                         while chunk := await uploaded.read(1024 * 1024):
@@ -642,8 +714,8 @@ def create_app(data_dir: Path | None = None, port: int = 18765) -> FastAPI:
                 except (ValueError, OSError, UnidentifiedImageError, Image.DecompressionBombError) as exc:
                     LOGGER.info("Import rejected %s: %s", name, exc)
                     if raw_path and raw_path.exists():
-                        os.chmod(inside_f(raw_path), stat.S_IWRITE)
-                        inside_f(raw_path).unlink(missing_ok=True)
+                        os.chmod(writable_path(raw_path), stat.S_IWRITE)
+                        writable_path(raw_path).unlink(missing_ok=True)
                     errors.append({"name": name, "error": str(exc)})
         finally:
             await form.close()
@@ -651,15 +723,15 @@ def create_app(data_dir: Path | None = None, port: int = 18765) -> FastAPI:
 
     @app.get("/api/photos/{photo_id}/image")
     async def photo_image(photo_id: str, kind: str = "preview"):
-        if kind not in ("original", "preview", "mask"):
+        if kind not in ("original", "preview", "mask", "input"):
             raise ValueError("未知图像类型。")
         with store.lock:
             photo = store.photo(photo_id)
-            key = {"original": "original_preview_path", "preview": "preview_path", "mask": "mask_path"}[kind]
+            key = {"original": "original_preview_path", "preview": "preview_path", "mask": "mask_path", "input": "generation_input_preview_path"}[kind]
             value = photo.get(key)
             if not value:
                 raise HTTPException(404, "此预览尚未生成。")
-            path = inside_f(value)
+            path = writable_path(value)
             if path.parent != store.folders["previews"]:
                 raise HTTPException(403, "无效预览位置。")
         return FileResponse(path, media_type="image/png" if kind == "mask" else "image/jpeg")
@@ -728,11 +800,58 @@ def create_app(data_dir: Path | None = None, port: int = 18765) -> FastAPI:
     @app.post("/api/jobs/{job_id}/open")
     async def jobs_open(job_id: str):
         with store.lock:
-            directory = inside_f(get_job(job_id)["output_dir"])
+            directory = writable_path(get_job(job_id)["output_dir"])
         if not directory.is_dir():
             raise ValueError("导出目录尚不存在。")
         os.startfile(str(directory))
         return {"ok": True, "path": str(directory)}
+
+    @app.get("/api/relight/status")
+    async def relight_status(probe: bool = False):
+        return await run_in_threadpool(lambda: store.relight.status(probe=probe))
+
+    @app.get("/api/models/status")
+    async def models_status():
+        return await run_in_threadpool(store.model_setup.status)
+
+    @app.post("/api/models/download")
+    async def models_download():
+        return {"installation": store.model_setup.start()}
+
+    @app.post("/api/relight/download")
+    async def relight_download():
+        return {"job": store.relight.create("download")}
+
+    @app.post("/api/relight/jobs")
+    async def relight_create(request: Request):
+        data = await body(request)
+        return {"job": store.relight.create("generate", ids_from(data), data.get("params", {}))}
+
+    @app.get("/api/relight/jobs")
+    async def relight_jobs():
+        with store.lock:
+            return {"jobs": [store.relight.public_job(j) for j in list(store.relight.jobs.values())[-30:]][::-1]}
+
+    @app.get("/api/relight/jobs/{job_id}")
+    async def relight_job(job_id: str):
+        with store.lock:
+            return {"job": store.relight.public_job(store.relight.get(job_id))}
+
+    @app.post("/api/relight/jobs/{job_id}/cancel")
+    async def relight_cancel(job_id: str):
+        return {"job": store.relight.cancel(job_id)}
+
+    @app.post("/api/shutdown")
+    async def shutdown():
+        callback = getattr(app.state, "shutdown_callback", None)
+        if callback is None:
+            raise RuntimeError("该启动方式未提供桌面停止接口。")
+        callback()
+        return {"ok": True}
+
+    licenses = APP_ROOT / "licenses"
+    if licenses.is_dir():
+        app.mount("/licenses", StaticFiles(directory=licenses), name="licenses")
 
     web = APP_ROOT / "web"
     if web.is_dir():
@@ -744,12 +863,14 @@ def main() -> None:
     import uvicorn
     parser = argparse.ArgumentParser(description="PortraitLab 本地服务（仅监听127.0.0.1）")
     parser.add_argument("--port", type=int, default=int(os.environ.get("PORTRAITLAB_PORT", "18765")))
-    parser.add_argument("--data", type=Path, help="F:\\codex 内的工作数据目录；默认使用PORTRAITLAB_DATA")
+    parser.add_argument("--data", type=Path, help="工作数据目录；默认使用PORTRAITLAB_DATA")
     args = parser.parse_args()
     port = args.port
     app = create_app(data_dir=args.data, port=port)
     # Explicit loopback binding and a single worker; no externally accessible server.
-    uvicorn.run(app, host="127.0.0.1", port=port, workers=1, access_log=False)
+    server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=port, workers=1, access_log=False))
+    app.state.shutdown_callback = lambda: setattr(server, "should_exit", True)
+    server.run()
 
 
 if __name__ == "__main__":

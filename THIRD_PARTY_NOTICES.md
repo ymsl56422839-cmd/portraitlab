@@ -1,29 +1,51 @@
 # Third-party notices
 
-## RapidRetouch
+## PortraitLab and RapidRetouch
 
-Copyright Chris Cork. Source: https://github.com/crispin81/RapidRetouch
+PortraitLab's integration code and RapidRetouch-derived code are distributed under **AGPL-3.0-only**. This does not relicense separately identified upstream code, model weights, Python, CUDA components or other runtime dependencies. The user's non-commercial research intent adds no non-commercial restriction to the AGPL code.
 
-Pinned commit: `d6f9a848fa5ba5628239b568777c5be3e7851a8e`.
-Source archive SHA-256: `a423036bd74c76abe3661846ab9b7190791ccaa7439eff131de728975d909c26`.
-License: **AGPL-3.0-only**. The complete upstream license is reproduced in the root `LICENSE`; upstream notices in vendored files are retained.
+RapidRetouch: Copyright Chris Cork. [Source](https://github.com/crispin81/RapidRetouch), pinned commit `d6f9a848fa5ba5628239b568777c5be3e7851a8e`. The source archive reviewed for this integration has SHA-256 `a423036bd74c76abe3661846ab9b7190791ccaa7439eff131de728975d909c26`.
 
-PortraitLab reuses the necessary image-processing modules and MediaPipe adapters in `portraitlab/vendor/rapidretouch_engine`. Its browser UI, HTTP service, engine wrapper, parameter/batch handling, output-path policy and launch tooling are separate integration changes dated 2026-11-13. This distribution is not an official RapidRetouch or RapidOne release. The original Tauri/React application and unrelated model implementations are not included as active backends.
+The complete upstream license is reproduced in the root [LICENSE](LICENSE). Original notices in `portraitlab/vendor/rapidretouch_engine` are retained. In PortraitLab 0.2, `adapters/mediapipe_face.py` and `adapters/mediapipe_parts.py` were modified to read the model with Python and pass `model_asset_buffer=path.read_bytes()` instead of a native model path. This fixes the observed MediaPipe failure when loading models from Windows Unicode/Chinese directories. Both modified locations carry a PortraitLab change comment; the vendored tree is therefore not an unmodified upstream copy. PortraitLab integrates the necessary processing modules and MediaPipe adapters with a separate browser UI, HTTP service, batch/parameter handling, path policy and launch tooling. The original Tauri/React application is not included. This is not an official RapidRetouch or RapidOne release.
 
-PortraitLab's own and derived code is distributed under AGPL-3.0-only. The current user's non-commercial research intent adds no non-commercial restriction to the AGPL license. Contributors retain their respective copyrights.
+## IC-Light source code
 
-## Runtime dependencies and models
+[IC-Light](https://github.com/lllyasviel/IC-Light) by Lvmin Zhang and contributors. Research attribution: Lvmin Zhang, Anyi Rao and Maneesh Agrawala, “Scaling In-the-Wild Training for Diffusion-based Illumination Harmonization and Editing by Imposing Consistent Light Transport,” ICLR 2025.
 
-Python packages remain under their respective licenses. The installer obtains dependencies separately; this source release does not relicense their code or claim ownership of their models. `requirements.lock.txt` identifies the validated dependency versions for this release.
+The integration is based on `gradio_demo.py` at commit `bcf3f29ca85be8a4686215f477b546f5030be8b7`. Upstream code is licensed under **Apache-2.0**; the complete original text is included as [IC-Light-Apache-2.0.txt](licenses/IC-Light-Apache-2.0.txt). No upstream `NOTICE` file was present in that pinned tree. Upstream attribution and this license remain applicable to reused/adapted code.
 
-MediaPipe framework: Apache-2.0; official source/license: https://github.com/google-ai-edge/mediapipe/blob/master/LICENSE . The two Google-hosted task/model files are separately downloaded, never included in the source release. RapidRetouch's pinned manifests identify them as Apache-2.0, but this distribution has not independently established version-specific weight licensing. Documentation footer licenses for sample code are not treated as proof of weight licensing. See `models/manifest.json` for exact URLs, expected hashes, evidence and status.
+PortraitLab's adaptations replace the Gradio application and BRIA preprocessing with its own local job interface and existing MediaPipe foreground mask, use fixed model revisions and checked local storage, and keep generated results separate from imported originals. The underlying foreground conditioning, 8-channel UNet offset merge, directional latent initialization and two-stage diffusion follow the official example. Modified source files identify the adaptation.
 
-The validated dependency set pins MediaPipe 0.10.21. On 2026-11-13, two local portrait samples completed analysis, rendering and adapter shutdown without an observed Clearcut log message. An earlier trial of MediaPipe 0.10.35 emitted `portable_clearcut_uploader.cc:90` / `Failed to send to clearcut` / `Status_ConnectFailed:12029` near shutdown. That failed transmission attempt does not establish its payload or prove a photograph upload. No packet-capture audit was performed; log and binary-string checks do not establish that the pinned SDK is network-silent. Application-layer local processing is not a claim that every third-party SDK is network-silent.
+The official demo uses BRIA RMBG-1.4, whose non-commercial restrictions are explicitly identified by IC-Light's README. PortraitLab does **not** include or download BRIA RMBG-1.4, its weights or `briarmbg.py` as part of this integration.
 
-The currently installed FastAPI, Uvicorn, NumPy, Pillow, OpenCV, MediaPipe and transitive dependencies retain their own license files and notices. A binary or bundled-runtime distributor must include the notices required by the exact packages they actually redistribute; this file is not a substitute for those package licenses.
+## IC-Light and base-model weights
 
-## Not included
+These are separate model artifacts, not AGPL application source:
 
-No IC-Light, ModelScope Skin Retouching, LBM, DPR or Intrinsic source/weights are incorporated as a PortraitLab backend. Planned registry entries are research references only. In particular, research-only or CC-BY-NC code is not silently relicensed under AGPL.
+| Artifact | Fixed revision | Declared terms |
+|---|---|---|
+| `lllyasviel/ic-light`, `iclight_sd15_fc.safetensors` | `9cad1878695f546a7fb9eaca14e2a89131ba5ffe` | CreativeML OpenRAIL-M |
+| `stablediffusionapi/realistic-vision-v51`, the base used by the official demo | `19e3643d7d963c156d01537188ec08f0b79a514a` | CreativeML OpenRAIL-M |
 
-User photographs, model weights, caches and generated image exports are excluded from the source release. Their rights are separate from this application's code license.
+The exact source declarations are preserved in [IC-Light's model card](licenses/IC-Light-MODEL-CARD.md) and [the selected base model's card](licenses/Realistic-Vision-v51-MODEL-CARD.md). The [original Realistic Vision author's card](licenses/Realistic-Vision-v51-AUTHOR-CARD.md), pinned at `1e9f017a7b1eaefb63a1900ea6c5953d2739fd21`, also declares CreativeML OpenRAIL-M. The selected base is the ModelsLab/StableDiffusionAPI conversion used by the official example; it is not represented as a checkpoint uploaded by the original author.
+
+The full [CreativeML OpenRAIL-M text](licenses/CreativeML-OpenRAIL-M.txt), dated August 22, 2022, is preserved from the pinned CompVis reference. Source URLs and file hashes are in [licenses/provenance.json](licenses/provenance.json). The IC-Light model card puts its license declaration after its prose; missing parsed Hugging Face `cardData` does not erase that declaration.
+
+OpenRAIL-M permits use and conditional redistribution, including commercial use; it is not an unrestricted license. Distribution of weights or model derivatives must carry the license, preserve applicable notices, mark modified files, and pass on Section 5 / Attachment A use restrictions as enforceable terms. Hosted model access is also covered by its definition of distribution. The model's output clause does not assign all possible rights in user photographs or other third-party material. See [RELIGHTING.md](docs/RELIGHTING.md) for the integration and distribution boundaries; its explanatory summary does not replace the original terms.
+
+Source archives exclude model binaries. The public software can obtain fixed weights separately; a local complete portable bundle may include weights with their original terms. Separating the download does not remove the model user's obligations. Merged, quantized or converted weights remain subject to the applicable upstream model terms.
+
+## MediaPipe and runtime dependencies
+
+MediaPipe framework: [Apache-2.0](https://github.com/google-ai-edge/mediapipe/blob/master/LICENSE). RapidRetouch's pinned manifests label the two Google-hosted task/model weights Apache-2.0, but this distribution has not independently established version-specific weight licensing. Documentation footer licenses for sample code are not proof of weight licensing. See `models/manifest.json` for the exact evidence and status. These weights are not included in the source release.
+
+The classic backend pins MediaPipe 0.10.21. The 2026-11-13 local sample checks completed without an observed Clearcut log. An earlier trial of 0.10.35 emitted `Failed to send to clearcut` / `Status_ConnectFailed:12029` near shutdown. That failed attempt does not establish its payload or prove a photograph upload. No packet-capture audit was performed; neither log checks nor binary-string checks prove network silence.
+
+Python, PyTorch, Diffusers, Transformers, NumPy, Pillow, FastAPI, Uvicorn, OpenCV, MediaPipe, CUDA components and other dependencies retain their own licenses. A portable binary distribution must preserve the actual bundled packages' copyright, license and NOTICE files, including Python's license and relevant third-party GPU runtime terms. Dependency names or a pip freeze are not substitutes for those texts. The source distribution and build instructions accompanying an AGPL executable must provide its corresponding source; see the root license.
+
+The audited wheels for FlatBuffers 25.12.19, SentencePiece 0.2.3, Safetensors 0.4.5 and Tokenizers 0.15.2 omitted license text in their recorded wheel metadata. Matching official release license texts are supplied in [licenses/runtime-extra](licenses/runtime-extra/provenance.json): all four projects' Apache-2.0 licenses, plus SentencePiece's Darts-clone BSD notice and libsais Apache-2.0 text. The provenance file records version tags, available upstream commits, source archives, URLs and SHA-256 values. Safetensors and Tokenizers license bytes were checked against both their official version tag and their hash-verified PyPI source release. These supplements accompany, rather than replace, original package metadata and notices.
+## Not included and private material
+
+ModelScope Skin Retouching, LBM, DPR and Intrinsic remain unintegrated research references. No research-only or CC-BY-NC code is silently relicensed under AGPL.
+
+User photographs, private generated images, screenshots containing those photographs, account data, caches and session logs are excluded from public source and binary releases. Their rights are separate from the application's code and model licenses.

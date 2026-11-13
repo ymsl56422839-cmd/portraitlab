@@ -1,0 +1,36 @@
+{
+  "reviewed_on": "2026-11-13",
+  "note": "Original upstream bytes. Model cards provide the model license declarations; the full CreativeML OpenRAIL-M text is obtained from the pinned CompVis reference. Translations and summaries elsewhere do not replace the original terms.",
+  "files": [
+    {
+      "file": "IC-Light-Apache-2.0.txt",
+      "source": "https://raw.githubusercontent.com/lllyasviel/IC-Light/bcf3f29ca85be8a4686215f477b546f5030be8b7/LICENSE",
+      "bytes": 11357,
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+    },
+    {
+      "file": "CreativeML-OpenRAIL-M.txt",
+      "source": "https://raw.githubusercontent.com/CompVis/stable-diffusion/21f890f9da3cfbeaba8e2ac3c425ee9e998d5229/LICENSE",
+      "bytes": 14385,
+      "sha256": "be351ebe7ac01bcdbb018639aadcfd38f136b7dc3f2a3d4d3a24db51d1b210ef"
+    },
+    {
+      "file": "IC-Light-MODEL-CARD.md",
+      "source": "https://huggingface.co/lllyasviel/ic-light/raw/9cad1878695f546a7fb9eaca14e2a89131ba5ffe/README.md",
+      "bytes": 114,
+      "sha256": "5f66a4121d3a55bba0825045e5e8b7236b26c6e5025f74e0300af637604b3fbb"
+    },
+    {
+      "file": "Realistic-Vision-v51-MODEL-CARD.md",
+      "source": "https://huggingface.co/stablediffusionapi/realistic-vision-v51/raw/19e3643d7d963c156d01537188ec08f0b79a514a/README.md",
+      "bytes": 2345,
+      "sha256": "9f2a7d048fb7d52562b04568b85039e51a653da617e339ca294f61469bc91015"
+    },
+    {
+      "file": "Realistic-Vision-v51-AUTHOR-CARD.md",
+      "source": "https://huggingface.co/SG161222/Realistic_Vision_V5.1_noVAE/raw/1e9f017a7b1eaefb63a1900ea6c5953d2739fd21/README.md",
+      "bytes": 2831,
+      "sha256": "8570fe3da7bdc73bbd98b3ed7e6e9cb207cc4c6a5d50c73faa004fbbd2ed012c"
+    }
+  ]
+}

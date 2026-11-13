@@ -3,6 +3,7 @@ import sys
 sys.dont_write_bytecode = True
 import argparse
 import json
+import os
 import subprocess
 import threading
 import time
@@ -22,11 +23,12 @@ def main():
     env['PORTRAITLAB_PORT'] = str(args.port)
     url = f'http://127.0.0.1:{args.port}'
     def open_browser():
-        candidates = [
-            Path('C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'),
-            Path('C:/Program Files/Microsoft/Edge/Application/msedge.exe'),
-            Path('C:/Program Files/Google/Chrome/Application/chrome.exe'),
-        ]
+        candidates = []
+        for variable in ('ProgramFiles(x86)', 'ProgramFiles', 'LOCALAPPDATA'):
+            if os.environ.get(variable):
+                parent = Path(os.environ[variable])
+                candidates.extend((parent / 'Microsoft/Edge/Application/msedge.exe',
+                                   parent / 'Google/Chrome/Application/chrome.exe'))
         browser = next((p for p in candidates if p.is_file()), None)
         if browser is None:
             print('Open the local application URL in your browser: '+url)

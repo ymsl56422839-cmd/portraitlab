@@ -1,0 +1,4 @@
+# Preserve the exact upstream bytes covered by licenses/provenance.json.
+licenses/** -text
+LICENSE -text
+portraitlab/vendor/rapidretouch_engine/COPYING -text

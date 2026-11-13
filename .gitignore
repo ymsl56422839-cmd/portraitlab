@@ -29,6 +29,7 @@ htmlcov/
 # Model registry is source; model binaries are not.
 /models/*
 !/models/manifest.json
+!/models/relight-manifest.json
 *.task
 *.tflite
 *.onnx

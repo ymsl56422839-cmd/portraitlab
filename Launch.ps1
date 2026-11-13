@@ -3,10 +3,6 @@ $ErrorActionPreference = 'Stop'
 
 # Match tools/bootstrap.py; no personal interpreter path is stored in source.
 $projectRoot = [IO.Path]::GetFullPath($PSScriptRoot)
-$allowedRoot = 'F:\codex\'
-if (-not $projectRoot.StartsWith($allowedRoot, [StringComparison]::OrdinalIgnoreCase)) {
-    throw 'Place PortraitLab inside F:\codex before running it.'
-}
 if ($env:PORTRAITLAB_WORK) {
     $workRoot = $env:PORTRAITLAB_WORK
     if (-not [IO.Path]::IsPathRooted($workRoot)) { $workRoot = Join-Path $projectRoot $workRoot }
@@ -16,8 +12,11 @@ if ($env:PORTRAITLAB_WORK) {
     $workRoot = Join-Path $projectRoot '.local'
 }
 $workRoot = [IO.Path]::GetFullPath($workRoot)
-if (-not $workRoot.StartsWith($allowedRoot, [StringComparison]::OrdinalIgnoreCase)) {
-    throw 'PORTRAITLAB_WORK must be inside F:\codex.'
+if ($env:PORTRAITLAB_STORAGE_ROOT) {
+    $storageBoundary = [IO.Path]::GetFullPath($env:PORTRAITLAB_STORAGE_ROOT).TrimEnd('\', '/')
+    if ($workRoot -ne $storageBoundary -and -not $workRoot.StartsWith($storageBoundary + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'PORTRAITLAB_WORK must be inside PORTRAITLAB_STORAGE_ROOT.'
+    }
 }
 $env:PORTRAITLAB_WORK = $workRoot
 $env:TEMP = Join-Path $workRoot 'temp'

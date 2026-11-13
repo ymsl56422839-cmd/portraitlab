@@ -1,4 +1,4 @@
-"""Prepare a local, reproducible environment without writing outside F:/codex."""
+"""Prepare a local, reproducible environment in configurable writable folders."""
 from __future__ import annotations
 import sys
 sys.dont_write_bytecode = True
@@ -15,9 +15,9 @@ PROJECT = Path(__file__).resolve().parents[1]
 
 def checked(path):
     resolved = Path(path).expanduser().resolve()
-    allowed = Path('F:/codex').resolve()
-    if allowed.drive.lower() != 'f:' or not resolved.is_relative_to(allowed):
-        raise ValueError(f'All writable paths must stay in F:/codex: {resolved}')
+    boundary = os.environ.get('PORTRAITLAB_STORAGE_ROOT')
+    if boundary and not resolved.is_relative_to(Path(boundary).expanduser().resolve()):
+        raise ValueError(f'Writable path is outside PORTRAITLAB_STORAGE_ROOT: {resolved}')
     return resolved
 
 def layout():
@@ -35,9 +35,12 @@ def environment(paths):
     result = os.environ.copy()
     for key, value in {
         'TEMP': paths['temp'], 'TMP': paths['temp'], 'PYTHONDONTWRITEBYTECODE': '1',
-        'PYTHONNOUSERSITE': '1', 'PORTRAITLAB_DATA': paths['data'],
+        'PYTHONNOUSERSITE': '1', 'PORTRAITLAB_DATA': paths['data'], 'PORTRAITLAB_CACHE': paths['cache'],
         'PIP_CACHE_DIR': paths['cache'] / 'pip', 'MPLCONFIGDIR': paths['cache'] / 'matplotlib',
         'HF_HOME': paths['cache'] / 'huggingface', 'TORCH_HOME': paths['cache'] / 'torch',
+        'CUDA_CACHE_PATH': paths['cache'] / 'cuda', 'TORCH_EXTENSIONS_DIR': paths['cache'] / 'torch-extensions',
+        'TORCHINDUCTOR_CACHE_DIR': paths['cache'] / 'torch-inductor',
+        'TRITON_CACHE_DIR': paths['cache'] / 'triton',
         'XDG_CACHE_HOME': paths['cache'], 'UV_CACHE_DIR': paths['cache'] / 'uv',
         'PIP_DISABLE_PIP_VERSION_CHECK': '1', 'PYTHONUTF8': '1',
     }.items():

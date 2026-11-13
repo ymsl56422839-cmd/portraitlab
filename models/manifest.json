@@ -63,19 +63,20 @@
     },
     {
       "id": "ic_light_v1",
-      "title": "IC-Light v1 (planned research adapter)",
+      "title": "IC-Light v1 foreground-conditioned relighting",
       "source_url": "https://huggingface.co/lllyasviel/ic-light",
-      "sha256": null,
+      "sha256": "a033fbaaa2f3f7859fa6a4477ee63ebbf9c116bf3569d5811856d2807f3468cd",
       "code_license": "Apache-2.0",
       "weights_license": "CreativeML OpenRAIL-M (official v1 model-card statement)",
-      "weights_license_note": "Not integrated or downloaded. The default demo also uses a separately licensed base model and BRIA RMBG-1.4; those terms must be reviewed or that component replaced. No automatic commercial-use conclusion for the full pipeline.",
+      "weights_license_note": "Integrated as an explicit opt-in JSON worker. The pinned base model also declares CreativeML OpenRAIL-M. MediaPipe foreground masks replace BRIA; no BRIA model is used. Full fixed revisions, files and checksums are in relight-manifest.json. Code licensing does not replace model-weight terms.",
       "license_url": "https://huggingface.co/lllyasviel/ic-light/raw/main/README.md",
-      "status": "planned",
-      "activation": "Disabled; no implementation and no automatic download.",
+      "status": "downloadable",
+      "activation": "Explicit download action only; generation requires local checksum-verified models and never downloads.",
+      "artifact_manifest": "relight-manifest.json",
       "dependencies": [
-        "future explicit implementation",
-        "base-model license review",
-        "segmentation component review"
+        "requirements-relight.txt",
+        "stablediffusionapi/realistic-vision-v51 pinned base model",
+        "supplied foreground mask"
       ],
       "intended_use": "Optional generative relighting experiments; no identity-preservation guarantee.",
       "included_in_source_distribution": false

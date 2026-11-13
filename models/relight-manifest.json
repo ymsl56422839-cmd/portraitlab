@@ -1,0 +1,133 @@
+{
+  "schema_version": 1,
+  "implementation": {
+    "repository": "https://github.com/lllyasviel/IC-Light",
+    "revision": "bcf3f29ca85be8a4686215f477b546f5030be8b7",
+    "source_file": "gradio_demo.py",
+    "code_license": "Apache-2.0"
+  },
+  "model": "IC-Light v1 foreground-conditioned",
+  "checkpoint_license": "CreativeML OpenRAIL-M",
+  "base_license": "CreativeML OpenRAIL-M",
+  "matting": "MediaPipe mask supplied by core; BRIA is not used",
+  "files": [
+    {
+      "path": "base/README.md",
+      "url": "https://huggingface.co/stablediffusionapi/realistic-vision-v51/resolve/19e3643d7d963c156d01537188ec08f0b79a514a/README.md?download=true",
+      "bytes": 2345,
+      "sha256": "9f2a7d048fb7d52562b04568b85039e51a653da617e339ca294f61469bc91015",
+      "repository": "stablediffusionapi/realistic-vision-v51",
+      "revision": "19e3643d7d963c156d01537188ec08f0b79a514a",
+      "source_path": "README.md"
+    },
+    {
+      "path": "base/text_encoder/config.json",
+      "url": "https://huggingface.co/stablediffusionapi/realistic-vision-v51/resolve/19e3643d7d963c156d01537188ec08f0b79a514a/text_encoder/config.json?download=true",
+      "bytes": 560,
+      "sha256": "5f0da673a5ddb4dcd74f304aa76da744c8b3d9dbada5bc5adfa711e7b4d80ddb",
+      "repository": "stablediffusionapi/realistic-vision-v51",
+      "revision": "19e3643d7d963c156d01537188ec08f0b79a514a",
+      "source_path": "text_encoder/config.json"
+    },
+    {
+      "path": "base/text_encoder/model.safetensors",
+      "url": "https://huggingface.co/stablediffusionapi/realistic-vision-v51/resolve/19e3643d7d963c156d01537188ec08f0b79a514a/text_encoder/model.safetensors?download=true",
+      "bytes": 246144152,
+      "sha256": "9706025d0e3053a3cdcc7e6cfa495c5ad951267a29ad08644aadb684ae217e7e",
+      "repository": "stablediffusionapi/realistic-vision-v51",
+      "revision": "19e3643d7d963c156d01537188ec08f0b79a514a",
+      "source_path": "text_encoder/model.safetensors"
+    },
+    {
+      "path": "base/tokenizer/merges.txt",
+      "url": "https://huggingface.co/stablediffusionapi/realistic-vision-v51/resolve/19e3643d7d963c156d01537188ec08f0b79a514a/tokenizer/merges.txt?download=true",
+      "bytes": 524619,
+      "sha256": "9fd691f7c8039210e0fced15865466c65820d09b63988b0174bfe25de299051a",
+      "repository": "stablediffusionapi/realistic-vision-v51",
+      "revision": "19e3643d7d963c156d01537188ec08f0b79a514a",
+      "source_path": "tokenizer/merges.txt"
+    },
+    {
+      "path": "base/tokenizer/special_tokens_map.json",
+      "url": "https://huggingface.co/stablediffusionapi/realistic-vision-v51/resolve/19e3643d7d963c156d01537188ec08f0b79a514a/tokenizer/special_tokens_map.json?download=true",
+      "bytes": 586,
+      "sha256": "6a757fc443f84ad1def3b893aac3858178f2a1513e3cf97b35ff131b5d88edd5",
+      "repository": "stablediffusionapi/realistic-vision-v51",
+      "revision": "19e3643d7d963c156d01537188ec08f0b79a514a",
+      "source_path": "tokenizer/special_tokens_map.json"
+    },
+    {
+      "path": "base/tokenizer/tokenizer_config.json",
+      "url": "https://huggingface.co/stablediffusionapi/realistic-vision-v51/resolve/19e3643d7d963c156d01537188ec08f0b79a514a/tokenizer/tokenizer_config.json?download=true",
+      "bytes": 704,
+      "sha256": "7eb36a76a02551ce8583dbee08d062e672997a5fe1db82ebc642d88c7e79cc96",
+      "repository": "stablediffusionapi/realistic-vision-v51",
+      "revision": "19e3643d7d963c156d01537188ec08f0b79a514a",
+      "source_path": "tokenizer/tokenizer_config.json"
+    },
+    {
+      "path": "base/tokenizer/vocab.json",
+      "url": "https://huggingface.co/stablediffusionapi/realistic-vision-v51/resolve/19e3643d7d963c156d01537188ec08f0b79a514a/tokenizer/vocab.json?download=true",
+      "bytes": 1059962,
+      "sha256": "e089ad92ba36837a0d31433e555c8f45fe601ab5c221d4f607ded32d9f7a4349",
+      "repository": "stablediffusionapi/realistic-vision-v51",
+      "revision": "19e3643d7d963c156d01537188ec08f0b79a514a",
+      "source_path": "tokenizer/vocab.json"
+    },
+    {
+      "path": "base/unet/config.json",
+      "url": "https://huggingface.co/stablediffusionapi/realistic-vision-v51/resolve/19e3643d7d963c156d01537188ec08f0b79a514a/unet/config.json?download=true",
+      "bytes": 1784,
+      "sha256": "e25cdfe978891263164028c81c0ea9ab97e44182af6ba444f0d0cd2248e8e151",
+      "repository": "stablediffusionapi/realistic-vision-v51",
+      "revision": "19e3643d7d963c156d01537188ec08f0b79a514a",
+      "source_path": "unet/config.json"
+    },
+    {
+      "path": "base/unet/diffusion_pytorch_model.safetensors",
+      "url": "https://huggingface.co/stablediffusionapi/realistic-vision-v51/resolve/19e3643d7d963c156d01537188ec08f0b79a514a/unet/diffusion_pytorch_model.safetensors?download=true",
+      "bytes": 1719125304,
+      "sha256": "c150f632d0c2338a50224504fa238f716cf50fb680897b0330563d2ff7bbf0e7",
+      "repository": "stablediffusionapi/realistic-vision-v51",
+      "revision": "19e3643d7d963c156d01537188ec08f0b79a514a",
+      "source_path": "unet/diffusion_pytorch_model.safetensors"
+    },
+    {
+      "path": "base/vae/config.json",
+      "url": "https://huggingface.co/stablediffusionapi/realistic-vision-v51/resolve/19e3643d7d963c156d01537188ec08f0b79a514a/vae/config.json?download=true",
+      "bytes": 606,
+      "sha256": "21b149c56cc3fd87620e9b97449ac0199af0001294afe563beb09ada7b6bf72b",
+      "repository": "stablediffusionapi/realistic-vision-v51",
+      "revision": "19e3643d7d963c156d01537188ec08f0b79a514a",
+      "source_path": "vae/config.json"
+    },
+    {
+      "path": "base/vae/diffusion_pytorch_model.safetensors",
+      "url": "https://huggingface.co/stablediffusionapi/realistic-vision-v51/resolve/19e3643d7d963c156d01537188ec08f0b79a514a/vae/diffusion_pytorch_model.safetensors?download=true",
+      "bytes": 167335342,
+      "sha256": "3e4c08995484ee61270175e9e7a072b66a6e4eeb5f0c266667fe1f45b90daf9a",
+      "repository": "stablediffusionapi/realistic-vision-v51",
+      "revision": "19e3643d7d963c156d01537188ec08f0b79a514a",
+      "source_path": "vae/diffusion_pytorch_model.safetensors"
+    },
+    {
+      "path": "IC_LIGHT_MODEL_CARD.md",
+      "url": "https://huggingface.co/lllyasviel/ic-light/resolve/9cad1878695f546a7fb9eaca14e2a89131ba5ffe/README.md?download=true",
+      "bytes": 114,
+      "sha256": "5f66a4121d3a55bba0825045e5e8b7236b26c6e5025f74e0300af637604b3fbb",
+      "repository": "lllyasviel/ic-light",
+      "revision": "9cad1878695f546a7fb9eaca14e2a89131ba5ffe",
+      "source_path": "README.md"
+    },
+    {
+      "path": "iclight_sd15_fc.safetensors",
+      "url": "https://huggingface.co/lllyasviel/ic-light/resolve/9cad1878695f546a7fb9eaca14e2a89131ba5ffe/iclight_sd15_fc.safetensors?download=true",
+      "bytes": 1719148312,
+      "sha256": "a033fbaaa2f3f7859fa6a4477ee63ebbf9c116bf3569d5811856d2807f3468cd",
+      "repository": "lllyasviel/ic-light",
+      "revision": "9cad1878695f546a7fb9eaca14e2a89131ba5ffe",
+      "source_path": "iclight_sd15_fc.safetensors"
+    }
+  ],
+  "total_bytes": 3853344390
+}
