@@ -22,6 +22,8 @@ import zipfile
 from webview2 import prepare as prepare_webview2
 
 PROJECT = Path(__file__).resolve().parents[1]
+APPLICATION_VERSION = re.search(r'^__version__ = "([0-9]+\.[0-9]+\.[0-9]+)"',
+    (PROJECT / "portraitlab/__init__.py").read_text(encoding="utf-8"), re.MULTILINE).group(1)
 PYTHON_VERSION = "3.12.10"
 PYTHON_URL = f"https://www.python.org/ftp/python/{PYTHON_VERSION}/python-{PYTHON_VERSION}-embed-amd64.zip"
 # SHA-256 published in python.org's Sigstore messageSignature.messageDigest.
@@ -163,7 +165,7 @@ def collect_licenses(packages, output):
 def app_source(destination):
     target = destination / "app"
     prepare_generated(target, destination)
-    ignored = shutil.ignore_patterns(".git", ".local", ".venv", "venv", "__pycache__", "*.pyc", "*.pyo", ".pytest_cache", ".ruff_cache", ".vscode", "work", "runtime", "cache", "logs", "state.json", "*.zip", "*.log", "*.tmp", "*.part", "*.safetensors", "*.ckpt", "*.pt", "*.onnx", "*.tflite", "*.task")
+    ignored = shutil.ignore_patterns(".git", ".local", ".venv", "venv", "__pycache__", "*.pyc", "*.pyo", ".pytest_cache", ".ruff_cache", ".vscode", "work", "runtime", "cache", "logs", "state.json", "*.zip", "*.log", "*.tmp", "*.part", "*.safetensors", "*.ckpt", "*.pt", "*.pth", "*.onnx", "*.tflite", "*.task")
     # Deliberate source-only allowlist: never sweep a developer's arbitrary root files.
     source_directories = ("portraitlab", "web", "tools", "packaging", "licenses", "docs", "tests")
     source_files = (".gitattributes", ".gitignore", "Launch.cmd", "Launch.ps1", "setup.ps1", "LICENSE", "NOTICE", "README.md", "THIRD_PARTY_NOTICES.md", "MODEL_LICENSES.md", "REPRODUCING.md", "pytest.ini", "requirements.txt", "requirements.lock.txt", "requirements-dev.txt", "requirements-relight.txt", "requirements-relight.lock.txt")
@@ -208,10 +210,10 @@ def launcher(destination, work):
     manifest = checked(work / "PortraitLab.manifest")
     manifest.write_text('''<?xml version="1.0" encoding="utf-8"?>
 <assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
- <assemblyIdentity version="0.3.0.0" name="PortraitLab.Desktop"/>
+ <assemblyIdentity version="__APPLICATION_VERSION__.0" name="PortraitLab.Desktop"/>
  <trustInfo xmlns="urn:schemas-microsoft-com:asm.v3"><security><requestedPrivileges><requestedExecutionLevel level="asInvoker" uiAccess="false"/></requestedPrivileges></security></trustInfo>
  <application xmlns="urn:schemas-microsoft-com:asm.v3"><windowsSettings><longPathAware xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">true</longPathAware><dpiAware xmlns="http://schemas.microsoft.com/SMI/2005/WindowsSettings">true</dpiAware></windowsSettings></application>
-</assembly>''', encoding="utf-8")
+</assembly>'''.replace('__APPLICATION_VERSION__', APPLICATION_VERSION), encoding="utf-8")
     executable = checked(destination / "PortraitLab.exe")
     args = [str(compiler), "/nologo", "/target:winexe", "/platform:x64", "/optimize+", "/codepage:65001",
             "/out:" + str(executable), "/win32manifest:" + str(manifest),
@@ -225,7 +227,7 @@ def launcher(destination, work):
 def copy_models(source, destination):
     source = Path(source).resolve()
     target = mkdir(destination / "Data/models")
-    for folder in ("face_landmarker", "selfie_multiclass", "ic-light"):
+    for folder in ("face_landmarker", "selfie_multiclass", "lighting", "ic-light"):
         if (source / folder).is_dir():
             copy_tree(source / folder, target / folder, shutil.ignore_patterns(".cache", "*.lock", "*.part"))
 
@@ -254,7 +256,7 @@ def main():
         launcher(destination, work)
     if args.models and args.stage in ("all", "models"):
         copy_models(args.models, destination)
-    write_json(destination / "portable-build.json", {"application": "PortraitLab", "version": "0.3.0", "platform": "Windows x64",
+    write_json(destination / "portable-build.json", {"application": "PortraitLab", "version": APPLICATION_VERSION, "platform": "Windows x64",
         "entry": "PortraitLab.exe", "python": PYTHON_VERSION, "python_source": PYTHON_URL, "python_sha256": PYTHON_SHA256,
         "ai_runtime_present": (destination / "AI/python.exe").is_file(), "core_runtime_present": (destination / "runtime/python.exe").is_file(),
         "license_policy": "Application source is AGPL-3.0; runtime dependencies and model weights retain their separate licenses."})

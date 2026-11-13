@@ -466,7 +466,7 @@ internal sealed class Launcher : Form
     }
     bool Busy() {
         if (!ready || !ownBackend) return false;
-        foreach (string path in new [] { "/api/jobs", "/api/relight/jobs", "/api/models/status" }) {
+        foreach (string path in new [] { "/api/jobs", "/api/relight/jobs", "/api/lighting/jobs", "/api/models/status" }) {
             try { if (ActiveStatus(Request(url + path, true, 1500))) return true; }
             catch (Exception exc) { Log("退出前状态检查：" + exc.GetType().Name); }
         }

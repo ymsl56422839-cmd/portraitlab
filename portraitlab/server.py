@@ -245,7 +245,8 @@ class PortraitStore:
                                    "engine_sha256": hashlib.sha256(engine_source).hexdigest(),
                                    "packages": packages}
         self.defaults = dict(self.engine_module.DEFAULT_PARAMS)
-        self.state = {"schema": 1, "photos": {}, "jobs": {}, "presets": {}, "preset_favorites": [], "processing_device": "auto"}
+        self.state = {"schema": 1, "photos": {}, "photo_trash": {}, "last_removed_ids": [],
+                      "jobs": {}, "presets": {}, "preset_favorites": [], "processing_device": "auto"}
         if self.state_path.exists():
             try:
                 loaded = json.loads(self.state_path.read_text(encoding="utf-8"))
@@ -254,6 +255,18 @@ class PortraitStore:
                 self.state.update(loaded)
             except Exception as exc:
                 raise RuntimeError("无法读取现有工作区状态；为保护原数据，服务未覆盖该文件。") from exc
+        # Removal is a reversible library operation. Original records and all
+        # image/export files remain in place; old workspaces have no trash.
+        trash, last_removed = self.state["photo_trash"], self.state["last_removed_ids"]
+        if (not isinstance(trash, dict)
+                or any(not isinstance(identifier, str) or identifier not in self.state["photos"]
+                       or not isinstance(record, dict)
+                       or not isinstance(record.get("removed_at"), str)
+                       or not isinstance(record.get("batch_id"), str)
+                       for identifier, record in trash.items())
+                or not isinstance(last_removed, list)
+                or any(not isinstance(identifier, str) or identifier not in trash for identifier in last_removed)):
+            raise RuntimeError("无法读取照片移除记录；为保护原数据，服务未覆盖工作区。")
         # Earlier workspaces already had an empty presets object but no favorites.
         # Reject damaged preset state rather than silently deleting user recipes.
         try:
@@ -287,6 +300,9 @@ class PortraitStore:
         self.engine.compositor = self.gpu
         from .model_setup import ModelSetup
         self.model_setup = ModelSetup(self.engine, self.engine_module.MODEL_SPECS, writable_path)
+        from .lighting_service import LightingController
+        self.lighting = LightingController(self, checked=writable_path, save_json=write_json,
+                                          save_image=write_image, timestamp=now, app_root=APP_ROOT)
         self.persist()
 
     def persist(self) -> None:
@@ -319,12 +335,77 @@ class PortraitStore:
 
     def photo(self, photo_id: str) -> dict:
         try:
-            return self.state["photos"][photo_id]
+            photo = self.state["photos"][photo_id]
         except KeyError:
             raise HTTPException(404, "未找到这张照片。")
+        if photo_id in self.state["photo_trash"]:
+            raise HTTPException(409, "这张照片已从照片库移除，请先撤销移除。")
+        return photo
+
+    def removal_undo_ids(self) -> list[str]:
+        return [identifier for identifier in self.state["last_removed_ids"]
+                if identifier in self.state["photo_trash"]]
+
+    def remove_photos(self, ids: list[str]) -> dict:
+        """Atomically hide a batch; never unlink originals, copies or exports."""
+        with self.lock:
+            photos = [self.photo(identifier) for identifier in ids]
+            wanted = set(ids)
+            for kind, jobs in (("导出", self.state["jobs"]),
+                               ("光影重塑", self.state.get("relight_jobs", {})),
+                               ("准备布光", self.state.get("lighting_jobs", {}))):
+                for job in jobs.values():
+                    if job.get("status") not in {"queued", "running", "cancelling"}:
+                        continue
+                    references = {p.get("id") for p in job.get("snapshots", [])}
+                    references.update(item.get(key) for item in job.get("items", [])
+                                      for key in ("photo_id", "source_id"))
+                    if wanted & references:
+                        raise HTTPException(409, f"所选照片正在{kind}，请等待任务结束后再移除。")
+            if any(self.photo_locks.get(p["id"]) is not None and self.photo_locks[p["id"]].locked()
+                   for p in photos):
+                raise HTTPException(409, "所选照片正在更新预览，请稍后再移除。")
+            removed_at, batch_id = now(), uuid.uuid4().hex
+            previous_trash, previous_last = self.state["photo_trash"], self.state["last_removed_ids"]
+            self.state["photo_trash"] = {**previous_trash, **{
+                identifier: {"removed_at": removed_at, "batch_id": batch_id} for identifier in ids}}
+            self.state["last_removed_ids"] = list(ids)
+            try:
+                self.persist()
+            except Exception:
+                self.state["photo_trash"], self.state["last_removed_ids"] = previous_trash, previous_last
+                raise
+            return {"removed_ids": list(ids), "removed_at": removed_at,
+                    "last_removed_ids": self.removal_undo_ids()}
+
+    def restore_photos(self, ids: list[str]) -> dict:
+        """Restore the same records, IDs and edits, without replacing library items."""
+        with self.lock:
+            photos = []
+            for identifier in ids:
+                if identifier not in self.state["photos"]:
+                    raise HTTPException(404, "未找到要恢复的照片。")
+                if identifier not in self.state["photo_trash"]:
+                    raise HTTPException(409, "部分照片已在照片库中，本次恢复未应用。")
+                photos.append(self.state["photos"][identifier])
+            previous_trash, previous_last = self.state["photo_trash"], self.state["last_removed_ids"]
+            wanted = set(ids)
+            self.state["photo_trash"] = {identifier: record for identifier, record in previous_trash.items()
+                                         if identifier not in wanted}
+            self.state["last_removed_ids"] = [identifier for identifier in previous_last if identifier not in wanted]
+            try:
+                self.persist()
+            except Exception:
+                self.state["photo_trash"], self.state["last_removed_ids"] = previous_trash, previous_last
+                raise
+            return {"restored_ids": list(ids), "photos": [self.public_photo(p) for p in photos],
+                    "last_removed_ids": self.removal_undo_ids()}
 
     def public_photo(self, photo: dict) -> dict:
+        from .lighting import validate_lighting
         out = {k: photo.get(k) for k in ("id", "name", "width", "height", "face_count", "status", "params", "warnings", "version", "strokes", "generation")}
+        out["lighting"] = validate_lighting(photo.get("lighting"))
+        out["lighting_geometry"] = photo.get("lighting_geometry")
         prefix = f"/api/photos/{photo['id']}/image"
         out["original_url"] = prefix + "?kind=original"
         if photo.get("generation_input_preview_path"):
@@ -553,18 +634,28 @@ class PortraitStore:
             try:
                 full = self.rgb(snapshot)
                 analysis = self.analysis(snapshot, full)
-                preview = resize_rgb(full, PREVIEW_SIDE)
+                has_lighting = bool(snapshot.get("lighting_geometry") or (snapshot.get("lighting") or {}).get("enabled"))
+                if has_lighting:
+                    base, meta = self.lighting.retouch_base(snapshot, full, analysis)
+                    width, height = self.lighting.preview_size(snapshot)
+                    output = self.lighting.resize_base(base, width, height)
+                    del base
+                else:
+                    preview = resize_rgb(full, PREVIEW_SIDE)
+                    with self.engine_lock:
+                        output, meta = self.engine.render(preview, snapshot["params"], analysis, strokes=snapshot["strokes"])
                 del full
-                with self.engine_lock:
-                    output, meta = self.engine.render(preview, snapshot["params"], analysis, strokes=snapshot["strokes"])
-                    mask = self.engine_module.mask_for(analysis, preview.shape[:2], snapshot["strokes"], region=snapshot["params"].get("region", "face"))
-                preview_path = writable_path(self.folders["previews"] / f"{photo_id}.{requested_version}.jpg")
+                mask = self.engine_module.mask_for(analysis, output.shape[:2], snapshot["strokes"], region=snapshot["params"].get("region", "face"))
+                output, lighting_meta = self.lighting.render(snapshot, output)
+                meta["lighting"] = lighting_meta
+                preview_format, preview_extension = ("PNG", "png") if has_lighting else ("JPEG", "jpg")
+                preview_path = writable_path(self.folders["previews"] / f"{photo_id}.{requested_version}.{preview_extension}")
                 mask_path = writable_path(self.folders["previews"] / f"{photo_id}.{requested_version}.mask.png")
                 with self.lock:
                     current = self.photo(photo_id)
                     if current["version"] != requested_version:
                         return {"photo": self.public_photo(current), "meta": {"stale": True}}
-                    write_image(preview_path, np.asarray(output, dtype=np.uint8), "JPEG")
+                    write_image(preview_path, np.asarray(output, dtype=np.uint8), preview_format)
                     write_image(mask_path, Image.fromarray(np.rint(np.clip(mask, 0, 1) * 255).astype(np.uint8)), "PNG")
                     old_paths = [current.get("preview_path"), current.get("mask_path")]
                     warnings = list(dict.fromkeys(snapshot.get("source_warnings", []) + list(analysis.get("warnings", [])) + list(meta.get("warnings", []))))
@@ -643,9 +734,20 @@ class PortraitStore:
             try:
                 rgb = self.rgb(snapshot)
                 analysis = self.analysis(snapshot, rgb)
-                rgb = resize_rgb(rgb, job["max_side"])
-                with self.engine_lock:
-                    output, meta = self.engine.render(rgb, snapshot["params"], analysis, strokes=snapshot.get("strokes", []))
+                if snapshot.get("lighting_geometry") or (snapshot.get("lighting") or {}).get("enabled"):
+                    base, meta = self.lighting.retouch_base(snapshot, rgb, analysis)
+                    if job["max_side"] and max(base.shape[:2]) > job["max_side"]:
+                        scale = job["max_side"]/max(base.shape[:2])
+                        output = self.lighting.resize_base(base, max(1, round(base.shape[1]*scale)), max(1, round(base.shape[0]*scale)))
+                    else:
+                        output = base
+                    del base
+                else:
+                    rgb = resize_rgb(rgb, job["max_side"])
+                    with self.engine_lock:
+                        output, meta = self.engine.render(rgb, snapshot["params"], analysis, strokes=snapshot.get("strokes", []))
+                output, lighting_meta = self.lighting.render(snapshot, output)
+                meta["lighting"] = lighting_meta
                 directory = writable_path(job["output_dir"])
                 extension, pil_format = {"jpg": ("jpg", "JPEG"), "png": ("png", "PNG"), "tiff": ("tiff", "TIFF")}[job["format"]]
                 stem = f"{safe_stem(snapshot['name'])}-{snapshot['id'][:8]}-{job_id[:6]}"
@@ -668,6 +770,7 @@ class PortraitStore:
                             "output_dimensions": [output.shape[1], output.shape[0]], "output_precision": "8-bit RGB",
                             "output_color_space": "sRGB", "source_color": snapshot.get("color"),
                             "params": snapshot["params"], "strokes": snapshot.get("strokes", []),
+                            "lighting": snapshot.get("lighting"), "lighting_geometry": snapshot.get("lighting_geometry"),
                             "processing_device": meta.get("processing_device"),
                             "models": analysis.get("models"), "engine_meta": meta,
                             "generation": snapshot.get("generation")}
@@ -704,6 +807,7 @@ def create_app(data_dir: Path | None = None, port: int = 18765) -> FastAPI:
     async def lifespan(app):
         yield
         store.model_setup.close()
+        store.lighting.close()
         store.relight.close()
         store.gpu.close()
         store.queue.put(None)
@@ -765,6 +869,9 @@ def create_app(data_dir: Path | None = None, port: int = 18765) -> FastAPI:
         response.headers["Referrer-Policy"] = "no-referrer"
         if request.url.path.startswith("/api/"):
             response.headers["Cache-Control"] = "no-store"
+        elif request.url.path == "/" or Path(request.url.path).suffix.lower() in {".html", ".js", ".css"}:
+            # Local incremental updates must replace the loaded editor scripts.
+            response.headers["Cache-Control"] = "no-cache, max-age=0, must-revalidate"
         return response
 
     @app.exception_handler(ValueError)
@@ -839,7 +946,23 @@ def create_app(data_dir: Path | None = None, port: int = 18765) -> FastAPI:
     @app.get("/api/photos")
     async def photos():
         with store.lock:
-            return {"photos": [store.public_photo(p) for p in store.state["photos"].values()]}
+            return {"photos": [store.public_photo(p) for p in store.state["photos"].values()
+                               if p["id"] not in store.state["photo_trash"]],
+                    "last_removed_ids": store.removal_undo_ids()}
+
+    @app.post("/api/photos/remove")
+    async def photos_remove(request: Request):
+        data = await body(request)
+        if set(data) != {"ids"}:
+            raise ValueError("移除照片请求必须仅包含 ids。")
+        return store.remove_photos(ids_from(data))
+
+    @app.post("/api/photos/restore")
+    async def photos_restore(request: Request):
+        data = await body(request)
+        if set(data) != {"ids"}:
+            raise ValueError("恢复照片请求必须仅包含 ids。")
+        return store.restore_photos(ids_from(data))
 
     @app.post("/api/import")
     async def import_photos(request: Request):
@@ -893,7 +1016,7 @@ def create_app(data_dir: Path | None = None, port: int = 18765) -> FastAPI:
             path = writable_path(value)
             if path.parent != store.folders["previews"]:
                 raise HTTPException(403, "无效预览位置。")
-        return FileResponse(path, media_type="image/png" if kind == "mask" else "image/jpeg")
+        return FileResponse(path, media_type="image/png" if path.suffix.lower() == ".png" else "image/jpeg")
 
     @app.post("/api/photos/{photo_id}/preview")
     async def preview(photo_id: str, request: Request):
@@ -902,11 +1025,100 @@ def create_app(data_dir: Path | None = None, port: int = 18765) -> FastAPI:
             photo = store.photo(photo_id)
             params = store.params(data.get("params", photo["params"]))
             strokes = validate_strokes(data["strokes"]) if "strokes" in data else photo["strokes"]
+            raw_lighting = data.get("lighting", photo.get("lighting"))
+            if "lighting_geometry" in data:
+                lighting, geometry = store.lighting.validate_edit(photo, raw_lighting, data["lighting_geometry"])
+            else:
+                lighting, geometry = store.lighting.validate_edit(photo, raw_lighting)
             # Validate the entire edit before persisting either part of it.
-            photo.update(params=params, strokes=strokes, version=photo["version"] + 1, status="settings_changed")
+            previous = dict(photo)
+            photo.update(params=params, strokes=strokes, lighting=lighting, lighting_geometry=geometry,
+                         version=photo["version"] + 1, status="settings_changed")
             version = photo["version"]
-            store.persist()
-        return await run_in_threadpool(store.render_preview, photo_id, version)
+            try:
+                store.persist()
+            except Exception:
+                photo.clear()
+                photo.update(previous)
+                raise
+        try:
+            return await run_in_threadpool(store.render_preview, photo_id, version)
+        except Exception:
+            with store.lock:
+                current = store.state["photos"].get(photo_id)
+                if current is not None and current.get("version") == version:
+                    current.clear()
+                    current.update(previous)
+                    store.persist()
+            raise
+
+    @app.get("/api/lighting/status")
+    async def lighting_status():
+        return await run_in_threadpool(store.lighting.status)
+
+    @app.post("/api/lighting/models/download")
+    async def lighting_download(request: Request):
+        data = await body(request)
+        if data:
+            raise ValueError("准备布光模型无需额外参数。")
+        return {"job": store.lighting.create("download")}
+
+    @app.post("/api/lighting/prepare")
+    async def lighting_prepare(request: Request):
+        data = await body(request)
+        if set(data) - {"photo_id", "device", "refresh_geometry"} or not isinstance(data.get("photo_id"), str):
+            raise ValueError("请选择要准备的照片。")
+        return {"job": store.lighting.create("prepare", data["photo_id"], data.get("device", "auto"), data.get("refresh_geometry", False))}
+
+    @app.get("/api/lighting/jobs")
+    async def lighting_jobs():
+        with store.lock:
+            return {"jobs": [store.lighting.public_job(job) for job in list(store.lighting.jobs.values())[-30:]][::-1]}
+
+    @app.get("/api/lighting/jobs/{job_id}")
+    async def lighting_job(job_id: str):
+        with store.lock:
+            return {"job": store.lighting.public_job(store.lighting.get(job_id))}
+
+    @app.post("/api/lighting/jobs/{job_id}/cancel")
+    async def lighting_cancel(job_id: str):
+        return {"job": store.lighting.cancel(job_id)}
+
+    @app.get("/api/lighting/assets/{job_id}/{name}")
+    async def lighting_asset(job_id: str, name: str):
+        return FileResponse(store.lighting.asset(job_id, name), media_type="image/png")
+
+    @app.post("/api/photos/{photo_id}/lighting")
+    async def lighting_save(photo_id: str, request: Request):
+        data = await body(request)
+        if set(data) != {"lighting", "expected_version", "geometry_key"} or type(data["expected_version"]) is not int:
+            raise ValueError("保留布光调整需要 lighting、expected_version 和 geometry_key。")
+        with store.lock:
+            photo = store.photo(photo_id)
+            if photo["version"] != data["expected_version"]:
+                raise HTTPException(409, "照片已有更新，请重新准备预览后保留布光调整。")
+            configuration, key = store.lighting.validate_edit(photo, data["lighting"], data["geometry_key"])
+            previous = dict(photo)
+            photo.update(lighting=configuration, lighting_geometry=key, version=photo["version"]+1, status="settings_changed")
+            version = photo["version"]
+            try:
+                store.persist()
+            except Exception:
+                photo.clear()
+                photo.update(previous)
+                raise
+        try:
+            return await run_in_threadpool(store.render_preview, photo_id, version)
+        except Exception:
+            # Rendering is part of retaining the edit. A failed preview must not
+            # leave new settings saved while the UI reports that saving failed.
+            with store.lock:
+                current = store.state["photos"].get(photo_id)
+                if current is not None and current.get("version") == version:
+                    current.clear()
+                    current.update(previous)
+                    store.persist()
+            raise
 
     @app.post("/api/settings/apply")
     async def apply_settings(request: Request):

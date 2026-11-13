@@ -30,6 +30,7 @@ htmlcov/
 /models/*
 !/models/manifest.json
 !/models/relight-manifest.json
+!/models/lighting-manifest.json
 *.task
 *.tflite
 *.onnx

@@ -1,4 +1,4 @@
-"""Build a model-free application update for an existing 0.2 portable folder.
+"""Build a model-free application update for an existing 0.2/0.3 portable folder.
 
 ZIP entries start at the application root; runtime, AI, Data and Cache are never
 included. The recipient closes PortraitLab before extracting into its folder.
@@ -74,13 +74,13 @@ def main():
     for component in webview['files']:
         if inventory.get(component['file']) != {'bytes': component['bytes'], 'sha256': component['sha256']}:
             raise ValueError('WebView2 files differ from their verified manifest: ' + component['file'])
-    upgrade = {'version': version, 'base_versions': ['0.2.0'], 'platform': build['platform'],
+    upgrade = {'version': version, 'base_versions': ['0.2.0', '0.3.0'], 'platform': build['platform'],
                'layout': 'application-root', 'preserved_directories': ['runtime', 'AI', 'Data', 'Cache'],
                'model_weights_included': False, 'files': inventory}
     readme = (
         f'照影 / PortraitLab {version} 小升级包\n\n'
-        '适用：已完整解压并可运行的 PortraitLab 0.2.0 Windows x64 软件目录。\n'
-        '1. 先保存当前操作并退出 PortraitLab，确认处理与模型下载任务已停止。\n'
+        '适用：已完整解压并可运行的 PortraitLab 0.2.0 或 0.3.0 Windows x64 软件目录。\n'
+        '1. 先保存当前操作并关闭所有照影 / PortraitLab 窗口，确认处理与模型下载任务已停止。只再开一个窗口会复用旧后台。\n'
         '2. 建议先备份原软件目录中的 Data（照片、参数、设置及模型）。\n'
         '3. 将本 ZIP 的全部内容直接解压到原软件目录，与 PortraitLab.exe 放在同一级，选择覆盖程序文件。\n'
         '   ZIP 内没有额外的顶层文件夹，请勿解压成原目录下的新子目录。\n'

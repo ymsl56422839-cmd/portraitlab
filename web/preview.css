@@ -1,0 +1,102 @@
+/* Central single/dual image preview. SPDX-License-Identifier: AGPL-3.0-only */
+.preview-heading.canvas-toolbar {
+  height: auto;
+  min-height: 48px;
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.preview-title { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.preview-title h2 { margin: 0; font-size: 13px; font-weight: 600; white-space: nowrap; }
+.preview-title #moduleCaption { font-size: 12px; color: var(--muted); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; max-width: 170px; }
+.preview-heading-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; margin-left: auto; }
+.preview-heading button, .preview-zoom-bar button, .pane-toolbar button { min-height: 32px; font-size: 12px; line-height: 1.5; white-space: nowrap; }
+.preview-heading .text-button { padding: 5px 7px; }
+.preview-layout-switch { display: flex; gap: 2px; padding: 2px; border: 1px solid #535d68; border-radius: 5px; background: #1b1e22; }
+.preview-layout-switch button { border: 1px solid transparent; background: transparent; padding: 3px 10px; color: #bfc8d1; min-height: 32px; }
+.preview-layout-switch button.active { background: #374d52; border-color: #a7d3d5; color: #edf8f8; }
+.preview-zoom-bar { flex: none; display: flex; align-items: center; flex-wrap: wrap; gap: 2px 12px; padding: 4px 12px; background: #202328; border-bottom: 1px solid var(--line); min-width: 0; }
+.preview-zoom-bar .zoom-controls { display: flex; flex-wrap: nowrap; flex: 1 1 300px; gap: 3px; align-items: center; min-width: 0; }
+.preview-zoom-bar .zoom-controls label { font-size: 12px; color: var(--muted); margin-right: 4px; }
+.preview-zoom-bar .zoom-controls button { color: #dae0e6; border: 1px solid transparent; padding: 3px 6px; }
+.preview-zoom-bar #zoomOut, .preview-zoom-bar #zoomIn { width: 32px; flex: none; font-size: 18px; }
+#zoomSlider { flex: 1 1 90px; min-width: 45px; max-width: 180px; margin: 0 4px; height: 24px; accent-color: #a7d3d5; cursor: pointer; }
+#zoomSlider:disabled { opacity: .4; cursor: default; }
+#zoomPercent { flex: none; min-width: 46px; text-align: right; font: 12px/1.5 var(--font); font-variant-numeric: tabular-nums; color: #dbe1e7; margin-right: 5px; }
+#zoomFit { flex: none; }
+.preview-hint { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.preview-grid { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); flex: 1 1 0; min-height: 0; min-width: 0; overflow: hidden; background: #15171a; }
+.preview-grid[data-layout="dual"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.preview-pane { display: flex; flex-direction: column; min-height: 0; min-width: 0; overflow: hidden; }
+.preview-grid[data-layout="dual"] #secondaryPane { border-left: 1px solid #616a75; }
+.pane-toolbar { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 4px 6px; min-height: 42px; padding: 4px 8px; border-bottom: 1px solid #414852; background: #25292e; min-width: 0; }
+.pane-name { flex: none; color: #b8c2cc; font-size: 12px; white-space: nowrap; }
+.pane-toolbar .view-tabs { display: flex; align-items: center; gap: 3px; min-width: 0; }
+.pane-toolbar .view-tabs button { font-size: 12px; min-height: 32px; padding: 4px 8px; border: 1px solid transparent; border-radius: 4px; }
+.pane-toolbar .view-tabs button.active { background: #374d52; border-color: #a7d3d5; color: #edf8f8; }
+.preview-pane .viewport { overflow: hidden; position: relative; min-height: 0; min-width: 0; overscroll-behavior: none; touch-action: none; cursor: default; outline-offset: -3px; }
+.preview-pane .viewport.can-pan { cursor: grab; }
+.preview-pane .viewport.is-panning { cursor: grabbing; }
+.preview-pane .stage-holder { position: absolute; inset: 0; display: block; width: 100%; height: 100%; min-height: 0; min-width: 0; padding: 0; }
+.preview-pane .stage { position: absolute; margin: 0; padding: 0; transform-origin: 0 0; background: #171a1e; }
+.preview-pane .stage > img { pointer-events: none; }
+.preview-pane .compare-handle { width: 2px; background: #eff5f6; box-shadow: 0 0 3px #000; }
+.preview-pane .compare-handle::before { inset: 0 -14px; }
+.preview-pane .compare-handle > span { width: 30px; height: 36px; line-height: 33px; border-radius: 5px; color: #23363b; background: #dcebec; border: 1px solid #758b92; }
+.preview-pane .compare-handle:focus-visible { outline: 2px solid #a7d3d5; outline-offset: 5px; }
+.preview-pane .image-label { font-size: 12px; background: #1b242dce; color: #edf2f6; border-color: #7c8b9860; padding: 3px 7px; }
+.preview-pane .image-label { max-width: 46%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.library-manage { padding: 0 10px 8px; flex: none; }
+.library-manage button { width: 100%; min-height: 32px; font-size: 12px; background: transparent; border-color: var(--line); color: var(--muted); }
+.photo-card { position: relative; }
+.photo-card-copy { min-width: 0; flex: 1; padding-right: 24px; }
+.photo-card .photo-card-copy strong { max-width: 100%; }
+.photo-remove { position: absolute; right: 3px; top: 3px; width: 28px; height: 32px; padding: 5px; border: 0; background: transparent; color: var(--muted); }
+.photo-remove:hover { background: #614046; color: #ffe3e6; }
+.photo-remove svg { width: 16px; height: 16px; }
+.library-removal { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 8px 10px; border-top: 1px solid var(--line); flex: none; font-size: 12px; color: var(--muted); }
+.library-removal button { min-height: 32px; font-size: 12px; padding: 4px 8px; margin-left: auto; }
+.preview-pane .left-label { left: 9px; }
+.preview-pane .right-label { right: 9px; }
+.preview-pane .render-badge { position: absolute; bottom: 14px; left: 50%; max-width: calc(100% - 24px); font-size: 12px; margin: 0; padding: 7px 11px; background: #202a32ed; border-color: #697b89; pointer-events: none; }
+.preview-pane .empty-state { position: absolute; inset: 0; min-height: 0; overflow: auto; padding: 24px 16px; cursor: default; }
+.preview-pane .empty-state h1 { font-size: 22px; }
+.preview-pane .empty-state .empty-notes { margin-top: 25px; flex-wrap: wrap; justify-content: center; }
+.mask-view-toggle { min-height: 32px; font-size: 12px; width: 100%; margin-bottom: 8px; }
+.mask-view-toggle.active { background: #374d52; border-color: #a7d3d5; color: #edf8f8; }
+.preview-grid[data-layout="dual"] .pane-toolbar { display: grid; grid-template-columns: minmax(0, 1fr); justify-items: start; gap: 1px; height: 61px; min-height: 61px; padding: 3px 7px; }
+.preview-grid[data-layout="dual"] .pane-toolbar .view-tabs { width: 100%; gap: 2px; }
+.preview-grid[data-layout="dual"] .pane-toolbar .view-tabs button { flex: 1 1 0; padding-inline: 3px; }
+@media (max-width: 1120px) {
+  .preview-heading.canvas-toolbar { gap: 4px 8px; padding-inline: 9px; }
+  .preview-title #moduleCaption { max-width: 110px; }
+  .preview-heading-actions { gap: 3px; }
+  .preview-heading .text-button { padding-inline: 5px; }
+  .preview-layout-switch button { padding-inline: 8px; }
+  .preview-zoom-bar { padding-inline: 9px; }
+  .preview-hint { display: block; }
+  .pane-toolbar { padding-inline: 6px; }
+}
+@media (max-width: 850px) {
+  .preview-title #moduleCaption { display: none; }
+  .preview-heading-actions { margin-left: 0; }
+  .preview-zoom-bar .zoom-controls { display: flex; flex-wrap: wrap; }
+  #zoomSlider { min-width: 40px; }
+  .pane-toolbar { flex-wrap: wrap; }
+  .preview-grid[data-layout="dual"] .pane-toolbar .view-tabs { flex-wrap: wrap; }
+  .preview-grid[data-layout="dual"] .pane-toolbar { height: 97px; min-height: 97px; }
+  .preview-grid[data-layout="dual"] .view-tabs button { flex-basis: 42%; }
+  .preview-grid[data-layout="dual"] .view-tabs button:last-child { flex-basis: 100%; }
+}
+@media (max-height: 740px) {
+  .preview-heading.canvas-toolbar { min-height: 42px; padding-block: 4px; }
+  .preview-zoom-bar { padding-block: 2px; }
+  .preview-pane .empty-state { justify-content: flex-start; padding-block: 14px; }
+  .preview-pane .empty-state .empty-icon { height: 48px; width: 48px; margin-bottom: 10px; }
+  .preview-pane .empty-state h1 { margin: 8px 0; font-size: 19px; }
+  .preview-pane .empty-state p { margin-bottom: 12px; }
+  .preview-pane .empty-state .empty-notes { margin-top: 14px; }
+}

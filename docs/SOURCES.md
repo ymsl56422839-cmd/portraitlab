@@ -1,6 +1,6 @@
 # 来源与固定版本
 
-核验日期：2026-11-13。下列版本用于追踪本次实现；模型的下载、运行验证和许可核验分别记录。
+核验日期：2026-11-13。下列版本用于追踪 0.4.0 的实现；模型的下载、运行验证和许可核验分别记录。公开发行源码保留固定来源、完整许可和 vendor 修改说明，公开二进制包不含模型权重。
 
 ## RapidRetouch 与经典引擎
 
@@ -19,7 +19,13 @@
 - [Image Segmenter 官方模型说明](https://ai.google.dev/edge/mediapipe/solutions/vision/image_segmenter#models)
 - [MediaPipe 框架许可证](https://github.com/google-ai-edge/mediapipe/blob/master/LICENSE)
 
-## IC-Light 生成式重打光
+## Depth Anything V2 Small 与交互布光
+
+- 官方代码固定到 [`a561b849ebae10a6f5ef49e26c83cbbcd36c71bf`](https://github.com/DepthAnything/Depth-Anything-V2/tree/a561b849ebae10a6f5ef49e26c83cbbcd36c71bf)，DPT／DINOv2 所需子集位于 `portraitlab/vendor/depth_anything_v2`；原 Apache-2.0 许可、上游文件头及修改说明一同保留。
+- 使用 [Depth-Anything-V2-Small 固定 revision](https://huggingface.co/depth-anything/Depth-Anything-V2-Small/tree/03876f8651c73a60fe4c2c48294e09fcb6838fcf) 的 `depth_anything_v2_vits.pth`，99,218,434 字节、SHA-256 与下载来源见 [lighting-manifest.json](../models/lighting-manifest.json)。仅 Small 权重声明 Apache-2.0；Base／Large／Giant 的 CC-BY-NC-4.0 不适用于本项目使用的 Small，也不能反向套用 Small 条款替换其他规格。
+- PortraitLab 从相对深度估计法线，并使用现有 MediaPipe 人物分割控制仅主体、仅背景、整张照片三种范围。灯光公式、选区预览与界面为本项目实现，不采用生成新图流程；来源、许可与方法的详细边界见 [INTERACTIVE_LIGHTING.md](INTERACTIVE_LIGHTING.md)。
+
+## IC-Light 生成式重打光（旧流程兼容）
 
 | 组成 | 固定来源 | 许可 |
 |---|---|---|

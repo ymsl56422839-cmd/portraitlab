@@ -35,7 +35,7 @@ $aiPython = Join-Path $buildRoot 'ai-env\Scripts\python.exe'
 ## 构建完整目录
 
 ```powershell
-$portable = Join-Path $buildRoot 'PortraitLab-0.3.0-Windows'
+$portable = Join-Path $buildRoot 'PortraitLab-0.4.0-Windows'
 $packWork = Join-Path $buildRoot 'packaging-work'
 & $corePython -B packaging\build_portable.py `
   --destination $portable --work $packWork `
@@ -47,17 +47,20 @@ $packWork = Join-Path $buildRoot 'packaging-work'
 
 运行时使用 `python312._pth` 限定模块路径；不复制 `pyvenv.cfg`，不依赖原 venv 或开发机器的 Python 安装。`runtime-manifest.json` 记录解释器来源。`app` 只复制构建器列明的源码目录和文件，`source-manifest.json` 记录复制后的 SHA-256。所有 wheel 的 dist-info 保留，许可证清单位于 `Licenses/runtime` 和 `Licenses/AI`；wheel 未携带的原文由 `licenses/runtime-extra` 及其来源记录补充。
 
+0.4.0 的交互布光源码通过 `portraitlab` 目录递归收录，包括 `portraitlab/vendor/depth_anything_v2` 的代码与修改说明；原 Apache-2.0 许可证由 `licenses` 目录收录，`models/lighting-manifest.json` 与另外两份 JSON 模型清单一并收录。源码复制排除 `.pth` 等权重文件，这一排除仅用于应用源码，不会排除嵌入式解释器的 `python312._pth`。公开包不含深度模型权重。具体发行包的构建与验收结果见 [VALIDATION.md](VALIDATION.md) 和对应 Release 说明。
+
 可分别重建 `--stage core`、`ai`、`app`、`launcher`、`models`。只会重建带 `.portraitlab-generated` 标记的 `runtime`、`AI`、`app` 直接子目录，避免误删外部目录；不会清空 `Data`。`--stage app` 同时刷新文档、许可证清单和源码摘要。
 
 桌面壳使用固定的 Microsoft.Web.WebView2 SDK，来源和 SHA-256 在 `packaging/webview2.lock.json`。构建器从官方 NuGet 获取并验证，复制 Core／WinForms 托管 DLL 和 x64 Loader；原始许可与来源记录在 `Licenses/WebView2`。Evergreen 浏览器 Runtime 是系统前置依赖，不包含在应用包中。WebView 的 profile、cache 与 crash 路径使用配置的 Cache 目录。正常关闭先等待前端保存，再停止自己创建的服务；`--headless --no-browser` 用于自动验证。
 
 ## 准备验证用模型
 
-可从工作台下载模型，也可把已按 `models/manifest.json` 和 `models/relight-manifest.json` 核验的模型目录复制进来。`--models` 指向包含以下子目录的父目录：
+可在软件设置和“光影重塑”中下载模型，也可把已按 `models/manifest.json`、`models/lighting-manifest.json` 核验的模型目录复制进来。旧 IC-Light 兼容验证另使用 `models/relight-manifest.json`，新交互布光不依赖扩散模型。`--models` 指向包含以下子目录的父目录：
 
 ```text
 face_landmarker/face_landmarker.task
 selfie_multiclass/selfie_multiclass_256x256.tflite
+lighting/depth_anything_v2_vits.pth
 ic-light/base/{tokenizer,text_encoder,vae,unet}/...
 ic-light/iclight_sd15_fc.safetensors
 ```
@@ -70,6 +73,8 @@ ic-light/iclight_sd15_fc.safetensors
 
 模型可以保留在个人使用的完整目录中；公开发行 ZIP 不带任何模型权重。不要把导入照片、运行状态、日志或缓存放进发行目录。
 
+交互布光只需基础人脸／分割模型与约 99 MB 的 Depth Anything V2 Small 权重；`ic-light` 两行仅用于旧生成流程。Small 权重及固定 vendor 代码使用 Apache-2.0，不得替换为许可不同的 Base／Large／Giant 权重。构建后应核对 `app/models/lighting-manifest.json`、`app/licenses/Depth-Anything-V2-Apache-2.0.txt` 和 vendor 的 `NOTICE.txt` 均列于 `source-manifest.json`。
+
 ## 实际移动与运行验证
 
 ```powershell
@@ -77,14 +82,27 @@ ic-light/iclight_sd15_fc.safetensors
   --package $portable `
   --copy-to (Join-Path $buildRoot '移动验证\PortraitLab 中文路径') `
   --report (Join-Path $buildRoot 'portable-verification.json') `
-  --port 18875 --ai-generate
+  --port 18875 --core-only
 ```
 
 目标必须不存在。验证器复制整包后故意设置无效的 `PYTHONHOME` 和 `PYTHONPATH`，确认核心和 AI 的导入、`sys.path`、`sys.base_prefix` 均来自新目录；启动原生 EXE，实际导入测试 PNG、进行 MediaPipe 预览，再通过带 token 的本地 API 关闭并检查进程退出。
 
 `--ai-generate` 额外使用新目录下的 AI Python、模型和中文文件名执行 **256×256、10 步、CPU** 真实生成，并核对输出尺寸。默认完整验证还会执行 AI CUDA/CPU 能力探测；只验证经典处理时可改用 `--core-only`，此时不复制 AI 运行时和 IC-Light 模型。
 
+上述 `--ai-generate` 是旧 IC-Light 检查，不能代替交互布光验收。发布前还需在实际包中验证深度模型准备、CPU／CUDA 分析、画布拖灯、三种作用范围及选区高亮、保留／撤销／重启恢复和原尺寸导出。0.4.0 启动器检查 `/api/lighting/jobs`，并通过前端退出检查保护布光分析、下载和未保留草稿。验证时还需确认新增窗口未复用更新前的旧后台；界面通过布光能力约定识别版本不匹配并提示完整重启。
+
 验证发生在复制目录中，原发行目录不会收到测试照片、缓存或状态。现有 Windows 机器上的移动测试不能替代干净 Windows 虚拟机或多种 GPU 的兼容性测试。
+
+交互布光使用独立验收器。提供一张包含清晰人物及背景的本地照片，以及已核验模型目录；照片和模型仅复制到新的验证目录，不进入公开包。以下命令必须由待测包的解释器运行：
+
+```powershell
+& (Join-Path $portable 'runtime/python.exe') -B packaging\verify_lighting.py `
+  --package $portable --work (Join-Path $buildRoot 'lighting-verification') `
+  --photo (Join-Path $buildRoot 'test-portrait.jpg') `
+  --models (Join-Path $buildRoot 'verified-models') --port 18876 --devices cpu
+```
+
+有兼容 NVIDIA 显卡时可改为 `--devices cpu cuda`。每种设备使用独立缓存，实际分析照片，并验证三种作用范围、同尺寸 PNG 一致、原尺寸未作用区域不变、撤销、重启恢复和进程关闭。结果写入验证目录的 `verification.json`；此脚本不包含浏览器视觉验收，不能替代拖灯与布局检查。
 
 ## 制作公开发行 ZIP
 
@@ -114,4 +132,4 @@ ic-light/iclight_sd15_fc.safetensors
   --package $portable --output (Join-Path $buildRoot 'upgrade')
 ```
 
-0.3.0 沿用 0.2.0 的两套 Python 依赖。升级包提供应用源码、新 EXE、WebView2 DLL、文档和许可，不带原有运行时与用户数据。用户需先退出旧版，再将升级内容解压到已有软件目录；保留 Data，不能只复制 EXE。新安装应使用完整包。升级包生成后必须在旧版隔离副本验证启动与数据保留。
+0.4.0 沿用 0.2.0／0.3.0 的两套 Python 依赖，升级包面向已有完整运行时的这两个版本。升级包提供应用源码、新 EXE、WebView2 DLL、文档和许可，不带原有运行时与用户数据。用户需先在各窗口保留或放弃草稿，关闭所有照影窗口，再将升级内容解压合并到已有软件目录；保留 Data 和 Cache，不能只复制 EXE。新安装应使用完整包。升级包生成后必须在旧版隔离副本验证启动与数据保留。

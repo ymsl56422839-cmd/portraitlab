@@ -77,6 +77,7 @@ def main():
         raise ValueError("Release output must be outside the portable folder")
     if not (package / "runtime/python.exe").is_file() or not (package / "AI/python.exe").is_file():
         raise ValueError("Build both runtimes before creating the full release")
+    build = json.loads((package / "portable-build.json").read_text(encoding="utf-8"))
     core_files = []
     for folder in ("app", "runtime", "Licenses"):
         core_files.extend(files_under(package / folder))
@@ -105,7 +106,7 @@ def main():
                 raise ValueError("Previous release asset changed: " + str(path))
             records.append(record)
     records.sort(key=lambda record: (record["component"] != "core", record["file"]))
-    write_json(output / "release-packages.json", {"version": "0.3.0", "platform": "Windows x64",
+    write_json(output / "release-packages.json", {"version": build["version"], "platform": "Windows x64",
         "top_level_directory": package.name, "model_weights_included": False,
         "maximum_asset_bytes": MAX_ASSET_BYTES, "archives": records,
         "installation": "Extract Core and every AI ZIP into the same parent folder. All ZIPs are ordinary independent archives; no concatenation is needed. Launch PortraitLab.exe, then download models from the app."})

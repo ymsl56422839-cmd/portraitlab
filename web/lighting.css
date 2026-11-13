@@ -1,0 +1,68 @@
+/* Interactive light controls use the same quiet viewing surround. SPDX-License-Identifier: AGPL-3.0-only */
+#lightingPanel { min-height: 0; }
+#lightingToolHost { flex: 1; min-width: 0; min-height: 0; overflow: auto; overscroll-behavior: contain; }
+.light-section { padding: 12px; border-bottom: 1px solid var(--line); }
+.light-heading { display: flex; align-items: center; justify-content: space-between; gap: 7px; margin-bottom: 8px; }
+.light-heading h2,.light-heading h3 { margin: 0; font-size: 13px; font-weight: 600; }
+.light-heading h2 { font-size: 15px; }
+.light-heading strong,.light-heading h3 span { font-size: 12px; font-weight: 400; color: var(--muted); }
+.light-heading button,.light-import button,.light-prepare-actions button,.light-detail-heading button { min-height: 32px; padding: 5px 8px; font-size: 12px; }
+.light-intro .status-tag { font-size: 12px; margin: 0; white-space: nowrap; }
+.light-note { font-size: 12px; line-height: 1.6; color: var(--muted); margin: 6px 0; overflow-wrap: anywhere; }
+.light-warning { color: #e9d09c; }
+.light-import { display: flex; gap: 6px; margin-top: 8px; }
+.light-import button { flex: 1; }
+.light-field { display: block; font-size: 12px; color: var(--muted); }
+.light-field select,#lightingScope { width: 100%; min-height: 34px; margin: 5px 0 0; padding: 5px 7px; font: 12px/1.5 var(--font); color: var(--text); background: #1b1e22; border: 1px solid #56616d; border-radius: 5px; }
+.light-prepare-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.light-prepare-actions button { flex: 1; }
+.light-progress { height: 4px; background: #424b55; border-radius: 3px; margin-top: 10px; overflow: hidden; }
+.light-progress span { display: block; height: 100%; width: 3%; background: var(--accent); transition: width .25s; }
+#lightingControls { border: 0; margin: 0; padding: 0; min-width: 0; }
+#lightingControls:disabled .light-section { opacity: .6; }
+.light-presets { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 6px; }
+.light-presets button { padding: 8px; min-width: 0; width: 100%; min-height: 56px; white-space: normal; text-align: left; display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 4px; background: #2d3137; border-color: #4b535d; }
+.light-presets button strong { font-size: 12px; font-weight: 600; }
+.light-presets button strong,.light-presets button span { min-width: 0; max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+.light-presets button span { font-size: 12px; color: var(--muted); line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.light-presets button.active { background: #34464c; border-color: var(--accent); }
+.light-check { display: inline-flex; gap: 5px; align-items: center; font-size: 12px; white-space: nowrap; }
+.light-check input,.light-list-item input { accent-color: var(--accent); }
+.light-slider { margin-top: 10px; margin-bottom: 10px; }
+.light-slider .slider-label { font-size: 12px; gap: 8px; }
+.light-slider output { min-width: 54px; text-align: right; }
+.light-slider input[type=range] { height: 24px; }
+.light-list { display: flex; flex-direction: column; gap: 5px; }
+.light-list-item { display: flex; align-items: center; gap: 7px; border: 1px solid #4a535e; border-radius: 5px; background: #24292f; padding: 3px 7px; }
+.light-list-item.selected { border-color: var(--accent); background: #34464c; }
+.light-list-item button { border: 0; background: transparent; min-height: 32px; font-size: 12px; flex: 1; text-align: left; justify-content: flex-start; padding: 4px; }
+.light-detail-heading { display: flex; align-items: flex-end; gap: 8px; margin-top: 12px; }
+.light-detail-heading .light-field { flex: 1; min-width: 0; }
+.light-detail-heading button { flex: none; min-height: 34px; }
+.light-limits { padding: 6px 12px 12px; margin: 0; }
+.lighting-actions { flex: none; padding: 9px 12px; border-top: 1px solid #56616c; background: #25292e; }
+.lighting-actions p { font-size: 12px; color: #d1dbe3; margin: 0 0 7px; line-height: 1.45; max-height: 54px; overflow: auto; }
+.lighting-actions p.error { color: #ffd0d2; }
+.lighting-actions>div { display: flex; gap: 7px; }
+.lighting-actions button { min-height: 36px; font-size: 13px; flex: 1; }
+.lighting-actions small { display: block; margin-top: 6px; color: var(--muted); font-size: 12px; }
+.lighting-canvas-status { flex: none; display: flex; align-items: baseline; gap: 10px; padding: 7px 14px; border-bottom: 1px solid var(--line); background: #272d33; font-size: 12px; line-height: 1.5; }
+.lighting-canvas-status strong { flex: none; font-weight: 600; color: #e1ecec; }
+.lighting-canvas-status span { color: var(--muted); overflow-wrap: anywhere; }
+.lighting-canvas-status[data-state="inactive"] strong,.lighting-canvas-status[data-state="selection"] strong { color: #eed29c; }
+.lighting-canvas-status[data-state="failed"] strong,.lighting-canvas-status[data-state="failed"] span { color: #ffd0d2; }
+.stage .lighting-preview,.stage .lighting-selection { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; }
+.stage .original-layer { z-index: 2; }
+.lighting-widget-layer { position: absolute; inset: 0; pointer-events: none; z-index: 9; }
+.lighting-widget-layer .light-widget { position: absolute; transform: translate(-50%,-50%); pointer-events: auto; touch-action: none; user-select: none; border: 2px solid #f0e8c2; background: #333a43e8; color: #fff5ca; width: 34px; height: 34px; min-width: 34px; min-height: 34px; padding: 0; border-radius: 50%; font: 600 13px/1 var(--font); box-shadow: 0 1px 5px #0009; cursor: move; }
+.lighting-widget-layer .light-widget.selected { background: #f5e3a2; border-color: #fff9df; color: #26323b; box-shadow: 0 0 0 3px #20282d90,0 1px 6px #0009; }
+.lighting-widget-layer .light-widget.muted { opacity: .55; }
+.lighting-widget-layer .light-widget.offscreen { border-style: dashed; }
+.lighting-widget-layer .light-widget.offscreen::after { content: attr(data-offscreen-arrow); position: absolute; right: -5px; top: -7px; padding: 0 2px; color: #fff4c5; background: #26323b; border-radius: 3px; font: 600 13px/16px var(--font); }
+.lighting-widget-layer .light-widget.light-target { border-radius: 5px; width: 28px; height: 28px; min-width: 28px; min-height: 28px; font-size: 20px; background: #26333bdb; color: #e6f1f2; border: 1px dashed #c4e1e5; }
+.lighting-widget-layer .light-widget:focus-visible { outline: 2px solid #fff; outline-offset: 4px; }
+#lightingLeaveDialog { max-width: min(480px,calc(100vw - 30px)); }
+#lightingLeaveDialog .dialog-heading h2 { font-size: 19px; }
+#lightingLeaveDialog .dialog-actions { flex-wrap: wrap; gap: 7px; }
+#lightingLeaveDialog button { min-height: 36px; font-size: 13px; }
+@media (max-height: 740px) { .light-section { padding: 10px 12px; } .lighting-actions { padding: 7px 10px; } .lighting-actions p { max-height: 38px; } }

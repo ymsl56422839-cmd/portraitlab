@@ -57,3 +57,12 @@ The **Microsoft Edge WebView2 Evergreen Runtime is a separate browser component*
 ModelScope Skin Retouching, LBM, DPR and Intrinsic remain unintegrated research references. No research-only or CC-BY-NC code is silently relicensed under AGPL.
 
 User photographs, private generated images, screenshots containing those photographs, account data, caches and session logs are excluded from public source and binary releases. Their rights are separate from the application's code and model licenses.
+
+
+## Interactive lighting and Depth Anything V2 Small (0.4.0)
+
+The application estimates relative depth with [Depth Anything V2](https://github.com/DepthAnything/Depth-Anything-V2), then derives approximate normals and renders deterministic image-space lights. Existing MediaPipe segmentation supplies the subject mask; PortraitLab applies that mask, its complement, or the entire image for subject-only, background-only, or whole-image lighting. Unselected pixels retain the retouched input values, with weighted blending at feathered boundaries. The optional selection highlight is a UI overlay and is not written into saved or exported images. It does not copy LG_Relight code (no license was identified in the researched repository). The custom lighting renderer and UI are PortraitLab AGPL-3.0-only code.
+
+The vendored PyTorch DPT/DINOv2 subset is pinned to official commit `a561b849ebae10a6f5ef49e26c83cbbcd36c71bf`. Its original Apache-2.0 license, upstream file headers and precise adaptation notices accompany `portraitlab/vendor/depth_anything_v2`. See `licenses/Depth-Anything-V2-Apache-2.0.txt` and the vendor `NOTICE.txt`.
+
+Only **Small** weights are used: official `depth-anything/Depth-Anything-V2-Small`, revision `03876f8651c73a60fe4c2c48294e09fcb6838fcf`, `depth_anything_v2_vits.pth`, 99,218,434 bytes, SHA-256 `715fade13be8f229f8a70cc02066f656f2423a59effd0579197bbf57860e1378`. The model's declared terms are Apache-2.0. Base/Large/Giant have different terms (CC-BY-NC-4.0) and are not substituted. Fixed download and license evidence are recorded in `models/lighting-manifest.json`.

@@ -1,0 +1,22 @@
+Depth Anything V2 Small integration
+
+Source: https://github.com/DepthAnything/Depth-Anything-V2
+Fixed source revision: a561b849ebae10a6f5ef49e26c83cbbcd36c71bf
+License: Apache License, Version 2.0
+Original license: app/licenses/Depth-Anything-V2-Apache-2.0.txt
+
+Original DINOv2 copyright notices for Meta Platforms, Inc. and affiliates,
+and upstream reference notices remain in the source files.
+
+Local modifications (2026-11-13):
+- dpt.py: replace torchvision.transforms.Compose with a small sequential
+  callable adapter, so the existing PyTorch runtime needs no torchvision.
+- dinov2_layers/attention.py: use PyTorch scaled_dot_product_attention in
+  the ordinary attention path to avoid large explicit attention matrices.
+- PortraitLab's separate lighting_worker.py handles explicit device selection,
+  image normalization, a bounded inference resolution, fixed-weight checks,
+  and derived normals. It does not use the upstream auto-device infer_image.
+
+Only the Small model weights are selected, with a separately pinned official
+Hugging Face revision and SHA-256 in models/lighting-manifest.json.
+The upstream Base, Large and Giant model licenses differ; they are not used.
