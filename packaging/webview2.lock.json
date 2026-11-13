@@ -1,0 +1,41 @@
+{
+  "package": "Microsoft.Web.WebView2",
+  "version": "1.0.4314.35",
+  "url": "https://api.nuget.org/v3-flatcontainer/microsoft.web.webview2/1.0.4314.35/microsoft.web.webview2.1.0.4314.35.nupkg",
+  "package_bytes": 9818548,
+  "sha256": "90778deb1b77e36292828b4b5833c9255c27533f40e0ddd55891ae718944edc4",
+  "files": [
+    {
+      "path": "lib/net462/Microsoft.Web.WebView2.Core.dll",
+      "bytes": 703328,
+      "sha256": "acdd517b951829f763d1255f32df1e6a936cb8623a7ebff6b8b24172dede6bd6",
+      "destination": "Microsoft.Web.WebView2.Core.dll"
+    },
+    {
+      "path": "lib/net462/Microsoft.Web.WebView2.WinForms.dll",
+      "bytes": 38792,
+      "sha256": "c66437f80886aecf074804b61af4cc10ad90a95310c8e0a717f31ea377c26b03",
+      "destination": "Microsoft.Web.WebView2.WinForms.dll"
+    },
+    {
+      "path": "runtimes/win-x64/native/WebView2Loader.dll",
+      "bytes": 194912,
+      "sha256": "d3fce90bdeecb08596e377dea6a316354dd8949e32ff09b89d51be00c14e21b6",
+      "destination": "WebView2Loader.dll"
+    },
+    {
+      "path": "LICENSE.txt",
+      "bytes": 1487,
+      "sha256": "0af8f1b807512aae39c2ac1aa4d0cae65cabecb6fd554b8439a5162a0d6eca55",
+      "destination": "LICENSE.txt"
+    },
+    {
+      "path": "NOTICE.txt",
+      "bytes": 3894,
+      "sha256": "106423785c5b7eba0a8e61d1837f2132e9c828e20ad530f565d981c1df60dd90",
+      "destination": "NOTICE.txt"
+    }
+  ],
+  "runtime": "Evergreen installed runtime is detected; browser runtime is not redistributed",
+  "license": "LICENSE.txt and NOTICE.txt retained verbatim from the pinned official NuGet package"
+}

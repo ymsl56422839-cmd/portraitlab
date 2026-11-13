@@ -39,10 +39,13 @@ from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 
 from . import __version__
+from .presets import BUILTIN_IDS, CATEGORIES, MAX_CUSTOM_PRESETS, builtin_presets, custom_payload, custom_record
+from .gpu_service import GPUCompositor, validate_device
 
 APP_ROOT = Path(__file__).resolve().parents[1]
 MAX_FILE_BYTES = 100 * 1024 * 1024
 MAX_REQUEST_BYTES = 512 * 1024 * 1024
+MAX_PRESET_REQUEST_BYTES = 64 * 1024
 MAX_PIXELS = 80_000_000
 MAX_FILES = 50
 PREVIEW_SIDE = 1600
@@ -242,7 +245,7 @@ class PortraitStore:
                                    "engine_sha256": hashlib.sha256(engine_source).hexdigest(),
                                    "packages": packages}
         self.defaults = dict(self.engine_module.DEFAULT_PARAMS)
-        self.state = {"schema": 1, "photos": {}, "jobs": {}, "presets": {}}
+        self.state = {"schema": 1, "photos": {}, "jobs": {}, "presets": {}, "preset_favorites": [], "processing_device": "auto"}
         if self.state_path.exists():
             try:
                 loaded = json.loads(self.state_path.read_text(encoding="utf-8"))
@@ -251,6 +254,26 @@ class PortraitStore:
                 self.state.update(loaded)
             except Exception as exc:
                 raise RuntimeError("无法读取现有工作区状态；为保护原数据，服务未覆盖该文件。") from exc
+        # Earlier workspaces already had an empty presets object but no favorites.
+        # Reject damaged preset state rather than silently deleting user recipes.
+        try:
+            saved_presets = self.state["presets"]
+            if not isinstance(saved_presets, dict) or len(saved_presets) > MAX_CUSTOM_PRESETS:
+                raise ValueError("invalid saved presets")
+            normalized = {}
+            for identifier, preset in saved_presets.items():
+                if not isinstance(identifier, str) or not re.fullmatch(r"user_[0-9a-f]{32}", identifier) or not isinstance(preset, dict):
+                    raise ValueError("invalid saved preset")
+                normalized[identifier] = custom_record(identifier, {key: preset[key] for key in ("name", "params", "description") if key in preset})
+            favorites = self.state["preset_favorites"]
+            if not isinstance(favorites, list) or not all(isinstance(value, str) for value in favorites):
+                raise ValueError("invalid saved favorites")
+            known = BUILTIN_IDS | normalized.keys()
+            self.state["presets"] = normalized
+            self.state["preset_favorites"] = list(dict.fromkeys(value for value in favorites if value in known))
+        except (ValueError, TypeError, KeyError) as exc:
+            raise RuntimeError("无法读取已保存的预设；为保护原数据，服务未覆盖工作区。") from exc
+        validate_device(self.state["processing_device"])
         for job in self.state["jobs"].values():
             if job["status"] in ("queued", "running", "cancelling"):
                 job.update(status="interrupted", error="上次进程已退出，请重新提交未完成照片。", updated_at=now())
@@ -260,6 +283,8 @@ class PortraitStore:
         from .relight_service import RelightController
         self.relight = RelightController(self, checked=writable_path, save_json=write_json,
                                          save_image=write_image, timestamp=now, app_root=APP_ROOT)
+        self.gpu = GPUCompositor(self, checked=writable_path, app_root=APP_ROOT)
+        self.engine.compositor = self.gpu
         from .model_setup import ModelSetup
         self.model_setup = ModelSetup(self.engine, self.engine_module.MODEL_SPECS, writable_path)
         self.persist()
@@ -267,6 +292,24 @@ class PortraitStore:
     def persist(self) -> None:
         with self.lock:
             write_json(self.state_path, self.state)
+
+    def hardware_selection(self, data):
+        if not isinstance(data, dict) or set(data) != {"device"}:
+            raise ValueError("设备请求仅支持 device 字段。")
+        device = validate_device(data["device"])
+        # Probe outside the store lock: other HTTP reads remain responsive.
+        result = self.gpu.validate_selection(device)
+        with self.lock:
+            previous = self.state["processing_device"]
+            self.state["processing_device"] = device
+            try:
+                self.persist()
+            except Exception:
+                self.state["processing_device"] = previous
+                raise
+        self.gpu.selection_changed(device)
+        result.pop("actual_device", None)
+        return result
 
     def params(self, supplied: Any) -> dict:
         if not isinstance(supplied, dict):
@@ -294,6 +337,63 @@ class PortraitStore:
     def public_job(self, job: dict) -> dict:
         return json_value({k: v for k, v in job.items() if k != "snapshots"})
 
+    def preset_catalog(self) -> dict:
+        with self.lock:
+            return json_value({"presets": builtin_presets() + list(self.state["presets"].values()),
+                               "categories": list(CATEGORIES), "favorites": list(self.state["preset_favorites"])})
+
+    def save_preset(self, data: dict) -> dict:
+        cleaned = custom_payload(data)
+        with self.lock:
+            if len(self.state["presets"]) >= MAX_CUSTOM_PRESETS:
+                raise ValueError(f"最多保存 {MAX_CUSTOM_PRESETS} 个自定义预设，请先删除不再使用的预设。")
+            if any(item["name"].casefold() == cleaned["name"].casefold() for item in self.state["presets"].values()):
+                raise HTTPException(409, "已有同名自定义预设，请换一个名称。")
+            identifier = "user_" + uuid.uuid4().hex
+            preset = custom_record(identifier, cleaned)
+            previous = self.state["presets"]
+            self.state["presets"] = {**previous, identifier: preset}
+            try:
+                self.persist()
+            except Exception:
+                self.state["presets"] = previous
+                raise
+            return {"preset": json_value(preset), **self.preset_catalog()}
+
+    def delete_preset(self, identifier: str) -> dict:
+        with self.lock:
+            if identifier in BUILTIN_IDS:
+                raise HTTPException(403, "内置预设不能删除，可以取消收藏。")
+            if identifier not in self.state["presets"]:
+                raise HTTPException(404, "未找到这个预设。")
+            previous, favorites = self.state["presets"], self.state["preset_favorites"]
+            self.state["presets"] = {key: value for key, value in previous.items() if key != identifier}
+            self.state["preset_favorites"] = [value for value in favorites if value != identifier]
+            try:
+                self.persist()
+            except Exception:
+                self.state["presets"], self.state["preset_favorites"] = previous, favorites
+                raise
+            return self.preset_catalog()
+
+    def favorite_preset(self, identifier: str, data: dict) -> dict:
+        if set(data) != {"favorite"} or not isinstance(data.get("favorite"), bool):
+            raise ValueError("favorite 必须是 true 或 false。")
+        with self.lock:
+            if identifier not in BUILTIN_IDS and identifier not in self.state["presets"]:
+                raise HTTPException(404, "未找到这个预设。")
+            previous = self.state["preset_favorites"]
+            values = [value for value in previous if value != identifier]
+            if data["favorite"]:
+                values.append(identifier)
+            self.state["preset_favorites"] = values
+            try:
+                self.persist()
+            except Exception:
+                self.state["preset_favorites"] = previous
+                raise
+            return self.preset_catalog()
+
     def add_photo(self, photo_id: str, name: str, raw_path: Path, sha: str) -> dict:
         image, color = decode_source(raw_path)
         normalized = writable_path(self.folders["cache"] / (photo_id + ".source.png"))
@@ -318,7 +418,7 @@ class PortraitStore:
         raw = writable_path(self.folders["uploads"] / (photo_id + ".png"))
         content = source.read_bytes()
         atomic_write(raw, lambda p: p.write_bytes(content), replace=False)
-        self.add_photo(photo_id, safe_stem(source_name) + " · AI重打光.png", raw, hashlib.sha256(content).hexdigest())
+        self.add_photo(photo_id, safe_stem(source_name) + " · 光影重塑.png", raw, hashlib.sha256(content).hexdigest())
         with self.lock:
             photo = self.photo(photo_id)
             # The generated image starts without a second, implicit beauty pass.
@@ -412,6 +512,34 @@ class PortraitStore:
                 photo.update(params=dict(validated), version=photo["version"] + 1, status="settings_changed")
             self.persist()
             return [self.public_photo(p) for p in photos]
+
+    def restore_params(self, entries: Any) -> list[dict]:
+        """Undo one batch only if none of its numeric settings changed afterwards."""
+        if not isinstance(entries, list) or not 1 <= len(entries) <= 500:
+            raise ValueError("批量撤销须包含 1～500 张照片。")
+        validated, seen = [], set()
+        for entry in entries:
+            if not isinstance(entry, dict) or set(entry) != {"id", "params", "expected_params"}:
+                raise ValueError("每项必须包含 id、params 和 expected_params。")
+            identifier = entry["id"]
+            if not isinstance(identifier, str) or not 1 <= len(identifier) <= 128 or identifier in seen:
+                raise ValueError("照片 ID 无效或重复。")
+            seen.add(identifier)
+            validated.append((identifier, self.params(entry["params"]), self.params(entry["expected_params"])))
+        with self.lock:
+            photos = [self.photo(identifier) for identifier, _, _ in validated]
+            if any(photo["params"] != expected for photo, (_, _, expected) in zip(photos, validated)):
+                raise HTTPException(409, "部分照片已有后续调整，本次批量撤销未应用。")
+            previous = [(p["params"], p["version"], p["status"]) for p in photos]
+            for photo, (_, params, _) in zip(photos, validated):
+                photo.update(params=params, version=photo["version"] + 1, status="settings_changed")
+            try:
+                self.persist()
+            except Exception:
+                for photo, (params, version, status) in zip(photos, previous):
+                    photo.update(params=params, version=version, status=status)
+                raise
+            return [self.public_photo(photo) for photo in photos]
 
     def render_preview(self, photo_id: str, requested_version: int) -> dict:
         with self.lock:
@@ -540,6 +668,7 @@ class PortraitStore:
                             "output_dimensions": [output.shape[1], output.shape[0]], "output_precision": "8-bit RGB",
                             "output_color_space": "sRGB", "source_color": snapshot.get("color"),
                             "params": snapshot["params"], "strokes": snapshot.get("strokes", []),
+                            "processing_device": meta.get("processing_device"),
                             "models": analysis.get("models"), "engine_meta": meta,
                             "generation": snapshot.get("generation")}
                 write_json(sidecar, metadata, replace=False)
@@ -576,6 +705,7 @@ def create_app(data_dir: Path | None = None, port: int = 18765) -> FastAPI:
         yield
         store.model_setup.close()
         store.relight.close()
+        store.gpu.close()
         store.queue.put(None)
         store.worker.join(timeout=10)
         close_engine = getattr(store.engine, "close", None)
@@ -595,11 +725,13 @@ def create_app(data_dir: Path | None = None, port: int = 18765) -> FastAPI:
         origin = request.headers.get("origin")
         if origin is not None and origin != "http://" + host:
             return JSONResponse({"detail": "不允许跨站请求。"}, status_code=403)
+        request_limit = MAX_PRESET_REQUEST_BYTES if request.url.path.startswith("/api/presets") else MAX_REQUEST_BYTES
+        limit_message = "预设请求不能超过 64 KiB。" if request_limit == MAX_PRESET_REQUEST_BYTES else "单次上传总大小不能超过 512 MiB。"
         length = request.headers.get("content-length")
         if length:
             try:
-                if int(length) > MAX_REQUEST_BYTES:
-                    return JSONResponse({"detail": "单次上传总大小不能超过 512 MiB。"}, status_code=413)
+                if int(length) > request_limit:
+                    return JSONResponse({"detail": limit_message}, status_code=413)
             except ValueError:
                 return JSONResponse({"detail": "无效请求长度。"}, status_code=400)
         # Enforce the same cap before multipart spooling, including chunked requests.
@@ -610,8 +742,8 @@ def create_app(data_dir: Path | None = None, port: int = 18765) -> FastAPI:
             message = await original_receive()
             if message.get("type") == "http.request":
                 received_bytes += len(message.get("body", b""))
-                if received_bytes > MAX_REQUEST_BYTES:
-                    raise HTTPException(413, "单次上传总大小不能超过 512 MiB。")
+                if received_bytes > request_limit:
+                    raise HTTPException(413, limit_message)
             return message
         request._receive = limited_receive
         if request.url.path.startswith("/api/") and request.url.path != "/api/bootstrap":
@@ -625,8 +757,8 @@ def create_app(data_dir: Path | None = None, port: int = 18765) -> FastAPI:
             response = await call_next(request)
         except Exception:
             # Starlette may wrap a receive exception in an AnyIO ExceptionGroup.
-            if received_bytes > MAX_REQUEST_BYTES:
-                return JSONResponse({"detail": "单次上传总大小不能超过 512 MiB。"}, status_code=413)
+            if received_bytes > request_limit:
+                return JSONResponse({"detail": limit_message}, status_code=413)
             raise
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
@@ -652,6 +784,8 @@ def create_app(data_dir: Path | None = None, port: int = 18765) -> FastAPI:
     async def body(request: Request) -> dict:
         try:
             data = await request.json()
+        except HTTPException:
+            raise
         except Exception as exc:
             raise HTTPException(400, "请求内容不是有效 JSON。") from exc
         if not isinstance(data, dict):
@@ -666,16 +800,41 @@ def create_app(data_dir: Path | None = None, port: int = 18765) -> FastAPI:
 
     @app.get("/api/bootstrap")
     async def bootstrap():
-        status = await run_in_threadpool(store.engine.status)
-        presets = getattr(store.engine_module, "PRESETS", {"自然": store.defaults})
-        preset_list = [{"id": str(key), "name": str(key), "params": params} for key, params in presets.items()]
+        preparation = await run_in_threadpool(store.model_setup.status)
+        status = preparation["models"]
+        catalog = store.preset_catalog()
         response = JSONResponse(json_value({"version": __version__, "token": token, "defaults": store.defaults,
-                                           "presets": preset_list, "models": status,
+                                           "presets": catalog["presets"], "preset_categories": catalog["categories"],
+                                           "preset_favorites": catalog["favorites"], "models": status,
                                            "storage": {"data_dir": str(store.data), "export_dir": str(store.folders["exports"]),
                                                        "max_files": MAX_FILES, "max_file_mib": 100, "max_pixels": MAX_PIXELS},
                                            "processing": {"precision": "RGB 8-bit", "color_space": "sRGB", "formats": ["jpg", "png", "tiff"]}}))
         response.set_cookie(COOKIE, token, httponly=True, samesite="strict", path="/")
         return response
+
+    @app.get("/api/presets")
+    async def presets_list():
+        return store.preset_catalog()
+
+    @app.get("/api/hardware")
+    async def hardware_status():
+        return await run_in_threadpool(store.gpu.status)
+
+    @app.post("/api/hardware")
+    async def hardware_select(request: Request):
+        return await run_in_threadpool(store.hardware_selection, await body(request))
+
+    @app.post("/api/presets")
+    async def presets_save(request: Request):
+        return store.save_preset(await body(request))
+
+    @app.delete("/api/presets/{preset_id}")
+    async def presets_delete(preset_id: str):
+        return store.delete_preset(preset_id)
+
+    @app.post("/api/presets/{preset_id}/favorite")
+    async def presets_favorite(preset_id: str, request: Request):
+        return store.favorite_preset(preset_id, await body(request))
 
     @app.get("/api/photos")
     async def photos():
@@ -754,6 +913,14 @@ def create_app(data_dir: Path | None = None, port: int = 18765) -> FastAPI:
         data = await body(request)
         ids = ids_from(data)
         return {"photos": store.update_params(ids, data.get("params")), "ids": ids}
+
+    @app.post("/api/settings/restore")
+    async def restore_settings(request: Request):
+        data = await body(request)
+        if set(data) != {"photos"}:
+            raise ValueError("批量撤销请求必须仅包含 photos。")
+        photos = store.restore_params(data["photos"])
+        return {"photos": photos, "ids": [photo["id"] for photo in photos]}
 
     @app.post("/api/photos/{photo_id}/mask")
     async def mask(photo_id: str, request: Request):

@@ -80,7 +80,7 @@ def main():
     core_files = []
     for folder in ("app", "runtime", "Licenses"):
         core_files.extend(files_under(package / folder))
-    for name in ("PortraitLab.exe", "LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.md", "MODEL_LICENSES.md", "REPRODUCING.md", "portable-build.json", "source-manifest.json", "PORTABLE-README.txt"):
+    for name in ("PortraitLab.exe", "Microsoft.Web.WebView2.Core.dll", "Microsoft.Web.WebView2.WinForms.dll", "WebView2Loader.dll", "webview2-manifest.json", "LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.md", "MODEL_LICENSES.md", "REPRODUCING.md", "portable-build.json", "source-manifest.json", "PORTABLE-README.txt"):
         if (package / name).is_file():
             core_files.append(package / name)
     if sum(p.stat().st_size for p in core_files) > UNCOMPRESSED_BUDGET:
@@ -105,7 +105,7 @@ def main():
                 raise ValueError("Previous release asset changed: " + str(path))
             records.append(record)
     records.sort(key=lambda record: (record["component"] != "core", record["file"]))
-    write_json(output / "release-packages.json", {"version": "0.2.0", "platform": "Windows x64",
+    write_json(output / "release-packages.json", {"version": "0.3.0", "platform": "Windows x64",
         "top_level_directory": package.name, "model_weights_included": False,
         "maximum_asset_bytes": MAX_ASSET_BYTES, "archives": records,
         "installation": "Extract Core and every AI ZIP into the same parent folder. All ZIPs are ordinary independent archives; no concatenation is needed. Launch PortraitLab.exe, then download models from the app."})

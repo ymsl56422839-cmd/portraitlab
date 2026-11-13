@@ -1,9 +1,10 @@
-"""PortraitLab CPU portrait engine. SPDX-License-Identifier: AGPL-3.0-only.
+"""Classic portrait engine with optional CUDA composition. SPDX-License-Identifier: AGPL-3.0-only.
 
 RapidRetouch algorithms are vendored beside this module. MediaPipe adapters
 load model bytes to support Unicode paths. This wrapper adds provenance, masks,
 and the small PortraitLab parameter contract. Importing it never downloads or
 writes files. Inputs and outputs are sRGB-encoded uint8 RGB arrays.
+Face inference and RapidRetouch skin processing remain on CPU.
 """
 from __future__ import annotations
 
@@ -210,6 +211,29 @@ def _body_regions(rgb: np.ndarray, faces: list[np.ndarray], parts: dict) -> list
     return people
 
 
+def compose_cpu(original: np.ndarray, changed: np.ndarray, p: dict, field: np.ndarray | None) -> np.ndarray:
+    """Reference linear-light composition, shared by CPU and automatic fallback."""
+    if p["opacity"] == 0:
+        return original.copy()
+    lin = srgb_to_linear(np.clip(changed, 0, 1)).astype(np.float32)
+    if p["exposure"]:
+        lin *= np.float32(2.0 ** p["exposure"])
+    if field is not None:
+        lin *= np.exp2(p["relight"] * field)[..., None]
+    if p["warmth"]:
+        gains = np.exp2(np.array([0.16, 0.0, -0.16], np.float32) * p["warmth"])
+        gains /= float(np.dot(gains, _LUMA))
+        lin *= gains
+    if p["saturation"] != 1:
+        luminance = np.sum(lin * _LUMA, axis=2, keepdims=True)
+        lin = luminance + p["saturation"] * (lin - luminance)
+    lin = np.maximum(lin, 0)
+    if p["opacity"] < 1:
+        source_lin = srgb_to_linear(original.astype(np.float32) / 255.0)
+        lin = source_lin + p["opacity"] * (lin - source_lin)
+    return np.rint(np.clip(linear_to_srgb(np.maximum(lin, 0)), 0, 1) * 255).astype(np.uint8)
+
+
 class Engine:
     def __init__(self, models_dir: Path):
         self.models_dir = Path(models_dir).resolve()
@@ -220,6 +244,8 @@ class Engine:
         self._parts_adapter = None
         self._verified: dict[str, str] = {}
         self._lock = threading.RLock()
+        # Optional isolated CUDA compositor. Model inference and skin tools stay CPU.
+        self.compositor = None
 
     def status(self) -> dict:
         records, errors = {}, []
@@ -228,7 +254,7 @@ class Engine:
             exists = path.is_file() and path.is_relative_to(self.models_dir)
             records[model_id] = {**spec, "path": str(path), "exists": exists, "verified": self._verified.get(model_id) == spec["sha256"]}
             if not exists:
-                errors.append(f"缺少模型：{model_id}；请在工作台左下角“处理模型”中下载并校验")
+                errors.append(f"缺少模型：{model_id}；请在设置中的“处理模型”下载并校验")
         return {"ready": not errors, "loaded": self._face_adapter is not None and self._parts_adapter is not None, "models": records, "errors": errors}
 
     def _ensure_models(self) -> None:
@@ -366,30 +392,24 @@ class Engine:
                 field = np.maximum(field, radial.astype(np.float32))
             field *= mask_for(analysis, (h, w), clean_strokes, "face")
         color_active = p["exposure"] != 0 or p["warmth"] != 0 or p["saturation"] != 1 or field is not None
+        device_info = {"preference": "cpu", "actual_device": "cpu", "gpu_name": None,
+                       "stage_note": "CPU 人脸识别、修肤、调色合成与文件压缩。"}
         if p["opacity"] == 0 or (not beauty_active and not color_active):
             output = original.copy()
+            if self.compositor is not None:
+                device_info = self.compositor.passthrough()
+            device_info["stage_note"] = "当前调整不改变像素，直接保留原图；未运行 GPU 合成。"
+        elif self.compositor is not None:
+            output, device_info = self.compositor.compose(original, changed, p, field)
+            if device_info.get("warning"):
+                warnings.append(device_info["warning"])
         else:
-            lin = srgb_to_linear(np.clip(changed, 0, 1)).astype(np.float32)
-            if p["exposure"]:
-                lin *= np.float32(2.0 ** p["exposure"])
-            if field is not None:
-                lin *= np.exp2(p["relight"] * field)[..., None]
-            if p["warmth"]:
-                gains = np.exp2(np.array([0.16, 0.0, -0.16], np.float32) * p["warmth"])
-                gains /= float(np.dot(gains, _LUMA))
-                lin *= gains
-            if p["saturation"] != 1:
-                luminance = np.sum(lin * _LUMA, axis=2, keepdims=True)
-                lin = luminance + p["saturation"] * (lin - luminance)
-            lin = np.maximum(lin, 0)
-            if p["opacity"] < 1:
-                source_lin = srgb_to_linear(src)
-                lin = source_lin + p["opacity"] * (lin - source_lin)
-            output = np.rint(np.clip(linear_to_srgb(np.maximum(lin, 0)), 0, 1) * 255).astype(np.uint8)
+            output = compose_cpu(original, changed, p, field)
         times["color_and_radial_exposure"] = (perf_counter() - step) * 1000
         times["total"] = (perf_counter() - started) * 1000
         metadata = {
             "params": p, "face_count": len(faces), "warnings": warnings,
+            "processing_device": device_info,
             "timings_ms": times, "algorithm": dict(ALGORITHM), "models": analysis.get("models", self.status()["models"]),
             "analysis_shape": analysis.get("shape"), "output_shape": list(original.shape[:2]),
             "mask_coverage": float(np.mean(effect_mask > 0.1)), "stroke_count": len(clean_strokes),

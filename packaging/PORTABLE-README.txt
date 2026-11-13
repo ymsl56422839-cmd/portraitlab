@@ -1,41 +1,44 @@
-映肤工作台 · PortraitLab 0.2.0 Windows 便携版
+照影 · PortraitLab 0.3.0 · Windows 人像修图
 
 启动
-双击 PortraitLab.exe。软件自带 Python 运行时，无需安装 Python 或使用终端。
-启动窗口会打开本地工作台；在窗口内可停止处理、重新启动或查看日志。
-支持 Windows 10/11 x64；需要本机的 Edge 或 Chrome 打开工作台。
-系统须有 Microsoft Visual C++ 2015–2022 x64 运行库。缺少时启动器会提示，
-并提供微软官方页面按钮，请选择 x64 版本：
+完整解压后双击 PortraitLab.exe，直接进入软件操作界面。
+运行日志在设置中查看。关闭软件会结束该窗口启动的服务；运行任务时会提示。
+软件自带 Python，无需安装 Python、Git 或 CUDA Toolkit。
+系统要求 Windows 10/11 x64、Microsoft Edge WebView2 Evergreen Runtime、
+Microsoft Visual C++ 2015–2022 x64 Runtime。缺少时按程序提示从微软安装：
+https://developer.microsoft.com/en-us/microsoft-edge/webview2/
 https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170
 
-下载包怎么解压
-1. 解压 PortraitLab-0.2.0-Windows-Core.zip。
-2. 需要 AI 重打光时，把所有 AI-xx-of-xx.zip 全部解压到与 Core 相同的位置。
-   每个 ZIP 都是普通独立压缩包。让内容合入同一个 PortraitLab-0.2.0-Windows
-   文件夹即可，不需要拼接文件或使用特殊分卷工具。
-3. 双击这个文件夹中的 PortraitLab.exe。
-4. GitHub 发行 ZIP 不含模型权重。第一次使用时，在工作台中下载并校验
-   经典模型；进入“AI 重打光”后下载相应 AI 模型。
-   已另行准备好模型的本地完整目录可直接使用，无需重复下载。
+下载与解压
+单包版：只需完整解压 All-in-One.zip，不要只发送或移动 EXE。
+GitHub 分包版：把 Core 和所有 AI-xx-of-xx.zip 解压到同一位置，
+合并成一个 PortraitLab-0.3.0-Windows 文件夹。均为普通 ZIP，无需拼接工具。
+公开 ZIP 不含权重。经典模型在设置中下载；AI 模型在重打光面板准备。
+本地已有模型可直接校验，不必重复下载。AI 模型约 3.59 GiB。
 
-保存位置
-默认照片、工程状态和模型保存在软件旁的 Data 文件夹，缓存保存在 Cache。
-整个软件目录可以移动；请先正常退出程序，再搬到有写权限的新位置。
-支持中文与空格路径。无需固定盘符或原开发机器的 Python 安装目录。
-如需自选数据位置，可设置 PORTRAITLAB_DATA / PORTRAITLAB_CACHE 环境变量，
-或在快捷方式目标末尾添加 --data "数据目录" --cache "缓存目录"。
-程序只会停止当前启动器所创建的处理服务。
+常用操作
+22 个经典预设支持搜索、分类、收藏、自定义保存和整体强度调整。
+照片可通过顶部、空白画布或重打光面板导入，也可拖入文件或文件夹。
+重打光默认使用当前照片；多图生成要明确开启批量并选择目标。
+批量同步保留每张照片的保护笔刷，支持撤销上次批量。
 
-AI 重打光
-经典修肤可使用 CPU。AI 也支持较慢的 CPU 模式。
-NVIDIA GPU 建议从 8 GB 显存、较小图像和低显存模式开始；12 GB 更宽裕。
-这些是部署建议，实际占用受图像尺寸、其他程序和驱动影响。
-IC-Light 会生成一张新照片，可能改变人脸细节、衣物或背景；原片会保留。
+设备
+经典处理支持自动、CPU、NVIDIA GPU 合成；GPU 需要 AI 运行组件和兼容驱动。
+GPU 执行曝光、色彩及混合，识别、修肤和文件压缩仍使用 CPU。
+生成式重打光有独立设备选择。建议 NVIDIA 12 GB 或以上；
+8 GB / 512 档 / 低显存模式是兼容目标，尚未在所有显卡上验证。
+AMD/Intel GPU 加速尚未接入；无兼容 CUDA 设备可选择较慢的 CPU。
+生成结果可能改变面部、衣物和背景；结果作为新照片保存，原片保留。
+
+保存位置与升级
+软件可放在任意可写盘符，支持中文路径，不依赖原开发电脑。
+默认 Data 保存原片副本、编辑记录、模型和输出，Cache 保存运行缓存。
+可用 --data / --cache 或 PORTRAITLAB_DATA / PORTRAITLAB_CACHE 自选位置。
+移动目录前先正常退出。升级旧版时保留 Data，勿用空目录覆盖它。
 
 源码与许可
-app 文件夹包含应用源码、构建脚本、模型清单及说明。
-应用代码使用 AGPL-3.0-only。Python、依赖库和模型各自保留独立许可；
-详情见 LICENSE、THIRD_PARTY_NOTICES.md 和 Licenses 文件夹。
-模型下载来源、固定版本和 SHA-256 记录在 app/models 中。
-
-完整文档：app/README.md、app/docs/RELIGHTING.md、app/docs/REPRODUCING.md。
+app 内包含源码、构建脚本、方法与验证记录。应用采用 AGPL-3.0-only；
+Python、WebView2、依赖库和模型各自保留独立许可。
+详见 LICENSE、THIRD_PARTY_NOTICES.md 和 Licenses。
+模型固定来源和 SHA-256 位于 app/models；下载通过后才能用于推理。
+https://github.com/ymsl56422839-cmd/portraitlab

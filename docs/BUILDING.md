@@ -1,6 +1,6 @@
 # 构建 Windows 便携版
 
-构建产物包含原生 `PortraitLab.exe`、两个独立的嵌入式 Python 运行时、应用源码和许可证。用户无需安装 Python。目标系统是 Windows 10/11 x64，需要 Microsoft Visual C++ 2015–2022 x64 Runtime；缺少时启动器提供[微软官方安装页面](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170)。本地网页使用 Edge 或 Chrome。
+构建产物包含原生 `PortraitLab.exe`、WebView2 桌面壳、两个独立的嵌入式 Python 运行时、应用源码和许可证。用户无需安装 Python。目标系统是 Windows 10/11 x64，需要 Microsoft Visual C++ 2015–2022 x64 Runtime 及 Microsoft Edge WebView2 Evergreen Runtime；缺少时程序提供微软官方安装入口。正常运行直接在一个软件窗口内显示操作界面。
 
 下面命令在源码根目录执行，示例把所有构建、临时和缓存文件放到 `F:\Codex\PortraitLab-build`。发行程序本身不限制盘符：默认使用软件旁的 `Data` 和 `Cache`，也支持环境变量和启动参数指定目录。`PORTRAITLAB_STORAGE_ROOT` 是可选的构建或部署边界，设置后会校验写入位置。
 
@@ -35,7 +35,7 @@ $aiPython = Join-Path $buildRoot 'ai-env\Scripts\python.exe'
 ## 构建完整目录
 
 ```powershell
-$portable = Join-Path $buildRoot 'PortraitLab-0.2.0-Windows'
+$portable = Join-Path $buildRoot 'PortraitLab-0.3.0-Windows'
 $packWork = Join-Path $buildRoot 'packaging-work'
 & $corePython -B packaging\build_portable.py `
   --destination $portable --work $packWork `
@@ -48,6 +48,8 @@ $packWork = Join-Path $buildRoot 'packaging-work'
 运行时使用 `python312._pth` 限定模块路径；不复制 `pyvenv.cfg`，不依赖原 venv 或开发机器的 Python 安装。`runtime-manifest.json` 记录解释器来源。`app` 只复制构建器列明的源码目录和文件，`source-manifest.json` 记录复制后的 SHA-256。所有 wheel 的 dist-info 保留，许可证清单位于 `Licenses/runtime` 和 `Licenses/AI`；wheel 未携带的原文由 `licenses/runtime-extra` 及其来源记录补充。
 
 可分别重建 `--stage core`、`ai`、`app`、`launcher`、`models`。只会重建带 `.portraitlab-generated` 标记的 `runtime`、`AI`、`app` 直接子目录，避免误删外部目录；不会清空 `Data`。`--stage app` 同时刷新文档、许可证清单和源码摘要。
+
+桌面壳使用固定的 Microsoft.Web.WebView2 SDK，来源和 SHA-256 在 `packaging/webview2.lock.json`。构建器从官方 NuGet 获取并验证，复制 Core／WinForms 托管 DLL 和 x64 Loader；原始许可与来源记录在 `Licenses/WebView2`。Evergreen 浏览器 Runtime 是系统前置依赖，不包含在应用包中。WebView 的 profile、cache 与 crash 路径使用配置的 Cache 目录。正常关闭先等待前端保存，再停止自己创建的服务；`--headless --no-browser` 用于自动验证。
 
 ## 准备验证用模型
 
@@ -100,3 +102,16 @@ ic-light/iclight_sd15_fc.safetensors
 发行包生成后，可在移动验证命令中增加 `--archives (Join-Path $buildRoot 'release')`，并选择一个新的 `--copy-to` 目录。验证器先检查发行 ZIP 的 SHA-256，再把所有 ZIP 解压合并到新中文目录；仅从 `--package` 复制已核验模型作为离线测试数据。此模式中的应用源码和两套运行时全部来自实际发行 ZIP。
 
 这是固定依赖与来源的重建流程，不承诺不同构建机器产生逐字节相同的 EXE/ZIP：编译器和文件时间戳仍可能不同。应用、依赖库和模型分别保留各自许可，不能把整个二进制包统一描述为 AGPL。
+
+## 单包转发与升级包
+
+完整发行 ZIP 通过后，可合为一个普通 ZIP，便于直接转发。合并器先验证所有来源 SHA-256，保留已压缩的数据，重新生成目录，再逐项检查 CRC；不添加 Data、Cache 或模型。
+
+```powershell
+& $corePython -B packaging\make_share.py `
+  --release (Join-Path $buildRoot 'release') --output (Join-Path $buildRoot 'share')
+& $corePython -B packaging\make_upgrade.py `
+  --package $portable --output (Join-Path $buildRoot 'upgrade')
+```
+
+0.3.0 沿用 0.2.0 的两套 Python 依赖。升级包提供应用源码、新 EXE、WebView2 DLL、文档和许可，不带原有运行时与用户数据。用户需先退出旧版，再将升级内容解压到已有软件目录；保留 Data，不能只复制 EXE。新安装应使用完整包。升级包生成后必须在旧版隔离副本验证启动与数据保留。

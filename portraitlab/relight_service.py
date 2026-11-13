@@ -45,8 +45,8 @@ def validate_options(raw):
     for key, lo, hi in (("seed", -1, 2**32 - 1), ("steps", 10, 50)):
         if type(data[key]) is not int or not lo <= data[key] <= hi:
             raise ValueError(f"{key} 超出允许范围。")
-    if type(data["long_side"]) is not int or data["long_side"] not in (512, 768, 1024):
-        raise ValueError("生成尺寸须为 512、768 或 1024 像素档。")
+    if type(data["long_side"]) is not int or data["long_side"] not in (256, 512, 768, 1024):
+        raise ValueError("生成尺寸须为 256、512、768 或 1024 像素档。")
     for key, lo, hi in (("denoise", .1, .9), ("cfg", 1, 10)):
         value = data[key]
         if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not lo <= value <= hi:

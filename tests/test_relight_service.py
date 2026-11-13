@@ -56,6 +56,10 @@ def test_generation_rejects_untrusted_options(options):
         validate_options(options)
 
 
+def test_cpu_trial_resolution_is_supported():
+    assert validate_options({"long_side": 256, "device": "cpu"})["long_side"] == 256
+
+
 def test_generated_photo_preserves_source_and_export_provenance(api, monkeypatch):
     client, app = api
     original = import_one(client)
