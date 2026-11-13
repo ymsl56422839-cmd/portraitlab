@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>映肤工作台 · PortraitLab</title><link rel="icon" href="/icon.svg" type="image/svg+xml"><link rel="stylesheet" href="/style.css"><script defer src="/app.js"></script></head>
+<body>
+<svg class="svg-defs" xmlns="http://www.w3.org/2000/svg"><defs>
+<symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+<symbol id="i-photo" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.5"/><path d="m3 17 5-5 4 4 4-6 5 7"/></symbol>
+<symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V3m-5 5 5-5 5 5M4 15v5h16v-5"/></symbol>
+<symbol id="i-export" viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/></symbol>
+<symbol id="i-sliders" viewBox="0 0 24 24"><path d="M5 3v5m0 4v9M12 3v10m0 4v4M19 3v2m0 4v12M2 8h6m1 9h6m1-12h6"/></symbol>
+<symbol id="i-brush" viewBox="0 0 24 24"><path d="m10 14 9-11 3 3-11 9M10 14c-6-2-3 5-8 6 6 2 11 0 8-6Z"/></symbol>
+<symbol id="i-undo" viewBox="0 0 24 24"><path d="M4 9h10a6 6 0 0 1 0 12M9 4 4 9l5 5"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+<symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+<symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 6h7l2 3h9v11H3Z"/></symbol>
+<symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/></symbol>
+</defs></svg>
+<header class="topbar">
+ <a class="brand" href="/" aria-label="映肤工作台"><span class="brand-mark"><span></span></span><span>映肤<span class="brand-sub">PORTRAITLAB</span></span><span class="version">0.1 · 研究版</span></a>
+ <div class="top-center"><span class="status-dot"></span><span id="connectionStatus">连接本地工作台…</span></div>
+ <div class="top-actions"><button id="aboutBtn" class="quiet"><svg><use href="#i-info"/></svg>来源与方法</button><button id="exportBtn" class="primary" disabled><svg><use href="#i-export"/></svg><span>导出照片</span><b id="exportCount">0</b></button></div>
+</header>
+<main class="workspace">
+ <aside class="library">
+  <div class="panel-heading"><span>照片库 <b id="photoCount">0</b></span><button id="importSmall" class="icon-button" title="导入照片"><svg><use href="#i-plus"/></svg></button></div>
+  <button id="importBtn" class="import-button"><svg><use href="#i-plus"/></svg>导入照片 <kbd>Ctrl O</kbd></button>
+  <div class="library-options"><label><input id="selectAll" type="checkbox">全选</label><span id="selectedCount">0 张已选</span><button id="importFolder" class="text-button" title="导入文件夹">文件夹</button></div>
+  <div id="photoList" class="photo-list"><div class="library-empty">照片与编辑参数<br>会保留在当前工作区</div></div>
+  <div class="library-bottom"><span class="mini-label">工作区</span><span>原图保留 · 独立编辑</span><button id="modelsBtn" class="model-status"><span class="status-dot"></span><span id="modelStatusText">检查处理模型</span><span>›</span></button></div>
+ </aside>
+ <section class="editor">
+  <div class="canvas-toolbar"><div class="view-tabs" role="tablist"><button class="active" data-view="compare">对照</button><button data-view="result">结果</button><button data-view="original">原图</button><button data-view="mask">皮肤选区</button></div><div class="zoom-controls"><button id="zoomOut" title="缩小">−</button><button id="zoomFit">适合画布</button><button id="zoomIn" title="放大">＋</button></div></div>
+  <div id="viewport" class="viewport">
+   <div id="emptyState" class="empty-state"><div class="empty-icon"><svg><use href="#i-photo"/></svg><span>＋</span></div><span class="eyebrow">YOUR PORTRAIT, YOUR CONTROL</span><h1>把光与肤质，调到刚刚好。</h1><p>导入一张人像开始精修，<br>也可以一次加入整组照片。</p><button id="importEmpty" class="primary"><svg><use href="#i-plus"/></svg>选择照片</button><span class="format-hint">JPEG · PNG · TIFF · WEBP</span><div class="empty-notes"><span>保留原始照片</span><i></i><span>参数可追溯</span><i></i><span>本机处理</span></div></div>
+   <div id="stageHolder" class="stage-holder" hidden><div id="stage" class="stage"><img id="resultImage" alt="调整后的照片" draggable="false"><img id="originalImage" class="original-layer" alt="原始照片" draggable="false"><img id="maskImage" class="mask-layer" alt="皮肤处理区域" hidden draggable="false"><canvas id="brushCanvas"></canvas><div id="compareHandle" class="compare-handle"><span>↔</span></div><span class="image-label left-label">原图</span><span class="image-label right-label">调整后</span><div id="brushCursor" hidden></div></div></div>
+   <div id="renderBadge" class="render-badge" hidden><span class="spinner"></span><span>正在分析与处理…</span></div>
+   <div id="dropOverlay" class="drop-overlay" hidden><svg><use href="#i-upload"/></svg><strong>松开以导入照片</strong></div>
+  </div>
+  <div class="canvas-footer"><div class="photo-info"><strong id="currentName">尚未选择照片</strong><span id="currentMeta">导入后开始编辑</span></div><div class="footer-tools"><button id="holdOriginal" class="quiet" disabled>按住看原图 <kbd>空格</kbd></button><button id="undoBtn" class="icon-button" title="撤销本次参数调整" disabled><svg><use href="#i-undo"/></svg></button></div></div>
+  <div id="notice" class="notice" hidden></div>
+ </section>
+ <aside class="adjustments">
+  <div class="panel-heading"><span><svg><use href="#i-sliders"/></svg>精修参数</span><button id="resetBtn" class="text-button" disabled>重置</button></div>
+  <div class="adjustments-scroll">
+   <section class="preset-section"><span class="section-kicker">从一个轻量调整开始</span><div id="presets" class="presets"><button data-preset="natural">自然</button><button data-preset="soft">细腻</button><button data-preset="original">原图</button></div></section>
+   <section class="control-section"><div class="section-title"><h2>皮肤与质感</h2><span class="tag">分频处理</span></div><div class="segmented"><button data-region="face" class="active">面部</button><button data-region="skin">面部与身体</button></div><div id="skinControls"></div><div class="control-note">五官与发丝由自动选区保护。需要时可用笔刷增加保护区域。</div></section>
+   <section class="control-section"><div class="section-title"><h2>光线与色彩</h2><span class="tag">可控调整</span></div><div id="toneControls"></div></section>
+   <section class="control-section brush-section"><div class="section-title"><h2>保护区域</h2><button id="clearMask" class="text-button" disabled>清除笔刷</button></div><div class="brush-buttons"><button id="protectBrush"><svg><use href="#i-brush"/></svg>保护笔刷 <kbd>B</kbd></button><button id="restoreBrush">恢复处理</button></div><div class="brush-size"><label for="brushSize">笔刷大小</label><input type="range" id="brushSize" min="1" max="15" step="0.5" value="4"><output id="brushSizeValue">4%</output></div><p class="control-note">在照片上涂抹，保留痣、雀斑或想留下的细节。</p></section>
+   <section class="control-section"><div id="opacityControl"></div></section>
+  </div>
+  <div class="adjustments-bottom"><button id="syncBtn" disabled><svg><use href="#i-sliders"/></svg>同步到选中照片 <span id="syncCount">0</span></button><p>每张照片保留自己的参数与保护笔刷</p></div>
+ </aside>
+</main>
+<div id="jobPanel" class="job-panel" hidden><div class="job-heading"><span><span id="jobIcon" class="spinner"></span><strong id="jobTitle">正在导出</strong></span><button id="closeJob" class="icon-button" title="收起队列"><svg><use href="#i-close"/></svg></button></div><div class="job-progress"><div id="jobProgress"></div></div><div id="jobDetails" class="job-details"></div><div class="job-actions"><button id="cancelJob" class="text-button">停止后续任务</button><button id="openExport" class="primary" hidden><svg><use href="#i-folder"/></svg>打开导出文件夹</button></div></div>
+<div id="toasts" class="toasts" aria-live="polite"></div>
+<input type="file" id="fileInput" accept="image/jpeg,image/png,image/tiff,image/webp" multiple hidden><input type="file" id="folderInput" webkitdirectory multiple hidden>
+<dialog id="exportDialog"><form method="dialog"><div class="dialog-heading"><div><span class="eyebrow">EXPORT</span><h2>导出精修照片</h2></div><button class="icon-button" aria-label="关闭"><svg><use href="#i-close"/></svg></button></div><p class="dialog-description">导出 <strong id="exportDialogCount">0</strong> 张照片，使用各自保存的编辑参数。</p><label class="field-label">文件格式<select id="exportFormat"><option value="jpg">JPEG · 高质量</option><option value="png">PNG · 无损</option><option value="tiff">TIFF · 8 位 RGB</option></select></label><label class="field-label">输出尺寸<select id="exportSize"><option value="0">原始尺寸 · 重新计算</option><option value="4000">长边不超过 4000 像素</option><option value="2400">长边不超过 2400 像素</option><option value="1600">长边不超过 1600 像素</option></select></label><label class="field-label">保存位置<input id="exportPath" type="text" placeholder="默认导出目录"><small>输出位于 F:\codex 内，每张图附带参数与来源记录。</small></label><div class="dialog-actions"><button value="cancel">取消</button><button type="button" id="startExport" class="primary"><svg><use href="#i-export"/></svg>开始导出</button></div></form></dialog>
+<dialog id="aboutDialog"><div class="dialog-heading"><div><span class="eyebrow">OPEN SOURCE / LOCAL FIRST</span><h2>每一次调整，都有来处。</h2></div><button class="icon-button" data-close="aboutDialog" aria-label="关闭"><svg><use href="#i-close"/></svg></button></div><p class="dialog-description">映肤工作台是一套开放的人像处理实验程序。批量处理与逐张精修使用同一个引擎。</p><div class="source-card"><b>修肤与分频算法</b><span>改编自 Chris Cork 的 RapidRetouch，保留原作者版权与 AGPL-3.0-only 许可。</span><a href="https://github.com/crispin81/RapidRetouch" target="_blank" rel="noreferrer">查看上游项目 ↗</a></div><div class="source-card"><b>人脸关键点与皮肤分区</b><span>使用 Google MediaPipe 模型。模型单独下载并校验哈希，权重条款与代码许可分别记录。</span><a href="https://ai.google.dev/edge/mediapipe/solutions/vision/image_segmenter" target="_blank" rel="noreferrer">查看模型资料 ↗</a></div><div class="source-card"><b>当前处理方式</b><span>经典分频修肤、局部瑕疵处理与面部曝光调整。此版本未接入生成式重布光，不会以大模型重画整张照片。</span></div><p class="small-print">源码、制作方法、局限与复现步骤随项目提供。图片、模型权重和本地处理记录不包含在公开源码中。</p><button data-close="aboutDialog" class="primary full-width">回到工作台</button></dialog>
+<dialog id="modelsDialog"><div class="dialog-heading"><div><span class="eyebrow">PROCESSING ENGINE</span><h2>处理模型</h2></div><button class="icon-button" data-close="modelsDialog" aria-label="关闭"><svg><use href="#i-close"/></svg></button></div><div id="modelsDetails"></div><p class="small-print">如果模型缺失，请关闭服务，运行 setup.ps1 -DownloadModels，然后重新启动。</p><button data-close="modelsDialog" class="primary full-width">知道了</button></dialog>
+</body></html>

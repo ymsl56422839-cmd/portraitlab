@@ -1,0 +1,121 @@
+{
+  "schema_version": 1,
+  "reviewed_on": "2026-11-13",
+  "application": "PortraitLab",
+  "distribution_policy": "Source code only; no model binaries, photographs or generated exports. Code licensing does not imply model-weight licensing.",
+  "default_backend": "classic",
+  "models": [
+    {
+      "id": "face_landmarker",
+      "title": "MediaPipe Face Landmarker",
+      "source_url": "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
+      "sha256": "64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff",
+      "filename": "face_landmarker.task",
+      "code_license": "Apache-2.0 (MediaPipe framework)",
+      "code_license_url": "https://github.com/google-ai-edge/mediapipe/blob/master/LICENSE",
+      "weights_license": "not-independently-verified",
+      "weights_license_note": "RapidRetouch pinned manifest labels this weight Apache-2.0. MediaPipe framework licensing is verified; a version-specific weight grant has not been independently verified. Do not substitute the documentation footer code-sample license for model-weight terms. Weights are downloaded separately for the current local research use and are not included in this source distribution.",
+      "license_url": null,
+      "model_card_url": "https://ai.google.dev/edge/mediapipe/solutions/vision/face_landmarker#models",
+      "status": "downloadable",
+      "activation": "Explicit setup.ps1 -DownloadModels; no download during photo processing.",
+      "included_in_source_distribution": false,
+      "dependencies": [
+        "mediapipe",
+        "numpy"
+      ],
+      "intended_use": "Locate facial landmarks and derive protected facial regions; no face generation.",
+      "hash_evidence": {
+        "kind": "expected_hash_from_pinned_upstream_manifest_and_release_download_verified",
+        "source_url": "https://github.com/crispin81/RapidRetouch/blob/d6f9a848fa5ba5628239b568777c5be3e7851a8e/engine/src/rapidretouch_engine/manifests/face_landmarker.yaml",
+        "locally_downloaded_and_verified": true,
+        "verified_on": "2026-11-13",
+        "verification_scope": "Release validation only; the installer must verify each local download. Weights remain excluded from source distribution."
+      }
+    },
+    {
+      "id": "selfie_multiclass",
+      "title": "MediaPipe Selfie Multiclass Segmentation 256x256",
+      "source_url": "https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_multiclass_256x256/float32/1/selfie_multiclass_256x256.tflite",
+      "sha256": "c6748b1253a99067ef71f7e26ca71096cd449baefa8f101900ea23016507e0e0",
+      "filename": "selfie_multiclass_256x256.tflite",
+      "code_license": "Apache-2.0 (MediaPipe framework)",
+      "code_license_url": "https://github.com/google-ai-edge/mediapipe/blob/master/LICENSE",
+      "weights_license": "not-independently-verified",
+      "weights_license_note": "RapidRetouch pinned manifest labels this weight Apache-2.0. MediaPipe framework licensing is verified; a version-specific weight grant has not been independently verified. Do not substitute the documentation footer code-sample license for model-weight terms. Weights are downloaded separately for the current local research use and are not included in this source distribution.",
+      "license_url": null,
+      "model_card_url": "https://ai.google.dev/edge/mediapipe/solutions/vision/image_segmenter#models",
+      "status": "downloadable",
+      "activation": "Explicit setup.ps1 -DownloadModels; no download during photo processing.",
+      "included_in_source_distribution": false,
+      "dependencies": [
+        "mediapipe",
+        "numpy"
+      ],
+      "intended_use": "Estimate background, hair, body skin, face skin, clothes and accessory regions; not ground-truth labels.",
+      "hash_evidence": {
+        "kind": "expected_hash_from_pinned_upstream_manifest_and_release_download_verified",
+        "source_url": "https://github.com/crispin81/RapidRetouch/blob/d6f9a848fa5ba5628239b568777c5be3e7851a8e/engine/src/rapidretouch_engine/manifests/selfie_multiclass.yaml",
+        "locally_downloaded_and_verified": true,
+        "verified_on": "2026-11-13",
+        "verification_scope": "Release validation only; the installer must verify each local download. Weights remain excluded from source distribution."
+      }
+    },
+    {
+      "id": "ic_light_v1",
+      "title": "IC-Light v1 (planned research adapter)",
+      "source_url": "https://huggingface.co/lllyasviel/ic-light",
+      "sha256": null,
+      "code_license": "Apache-2.0",
+      "weights_license": "CreativeML OpenRAIL-M (official v1 model-card statement)",
+      "weights_license_note": "Not integrated or downloaded. The default demo also uses a separately licensed base model and BRIA RMBG-1.4; those terms must be reviewed or that component replaced. No automatic commercial-use conclusion for the full pipeline.",
+      "license_url": "https://huggingface.co/lllyasviel/ic-light/raw/main/README.md",
+      "status": "planned",
+      "activation": "Disabled; no implementation and no automatic download.",
+      "dependencies": [
+        "future explicit implementation",
+        "base-model license review",
+        "segmentation component review"
+      ],
+      "intended_use": "Optional generative relighting experiments; no identity-preservation guarantee.",
+      "included_in_source_distribution": false
+    },
+    {
+      "id": "modelscope_skin_retouching",
+      "title": "ModelScope Skin Retouching (planned research adapter)",
+      "source_url": "https://modelscope.cn/models/iic/cv_unet_skin_retouching_torch",
+      "sha256": null,
+      "code_license": "Not independently audited for this integration",
+      "weights_license": "Not independently audited for this integration",
+      "weights_license_note": "Catalog reference only. Exact code revision, checkpoints, base dependencies and redistribution terms must be verified before implementation or download.",
+      "license_url": null,
+      "status": "planned",
+      "activation": "Disabled; no implementation and no automatic download.",
+      "dependencies": [
+        "future explicit implementation",
+        "artifact and license audit"
+      ],
+      "intended_use": "Research comparison against classic skin processing.",
+      "included_in_source_distribution": false
+    },
+    {
+      "id": "lbm_relighting",
+      "title": "LBM Relighting (planned non-commercial research adapter)",
+      "source_url": "https://huggingface.co/jasperai/LBM_relighting",
+      "sha256": null,
+      "code_license": "CC-BY-NC-4.0 (official repository README)",
+      "weights_license": "CC-BY-NC-4.0",
+      "weights_license_note": "No code or weights vendored. SDXL base-model terms also apply; research/non-commercial restrictions are not changed by PortraitLab AGPL code.",
+      "license_url": "https://huggingface.co/jasperai/LBM_relighting/raw/main/README.md",
+      "status": "planned",
+      "activation": "Disabled; no implementation and no automatic download.",
+      "dependencies": [
+        "future explicit implementation",
+        "SDXL base-model terms",
+        "separate license review"
+      ],
+      "intended_use": "Optional single-step image harmonization research; not a validated natural portrait-retouching backend.",
+      "included_in_source_distribution": false
+    }
+  ]
+}
