@@ -439,3 +439,67 @@ def test_preview_undo_restores_geometry_and_rejects_other_photo(api, monkeypatch
     cleared = client.post(endpoint, json={'lighting': lighting.DEFAULT_LIGHTING, 'lighting_geometry': None})
     assert cleared.status_code == 200
     assert cleared.json()['photo']['lighting_geometry'] is None
+
+
+def test_local_edits_reuse_global_base_and_lighting_uses_same_local_pixels(api, monkeypatch):
+    client, store, _ = api
+    photo, original = import_photo(client)
+    calls = []
+    original_render = store.engine.render
+    def tracked(rgb, params, analysis, strokes=None):
+        calls.append(params['exposure'])
+        return original_render(rgb, params, analysis, strokes)
+    monkeypatch.setattr(store.engine, 'render', tracked)
+    endpoint = f"/api/photos/{photo['id']}/preview"
+    baseline = client.post(endpoint, json={'params': {'exposure': .4}}).json()['photo']
+    local = {'rect': {'x': .25, 'y': .25, 'width': .5, 'height': .5}, 'params': {'exposure': 1}}
+    edited = client.post(endpoint, json={'local_adjustment': local}).json()['photo']
+    local['rect']['x'] = .1
+    edited = client.post(endpoint, json={'local_adjustment': local}).json()['photo']
+    assert calls == [.4, 1, 1]  # Global retouching was not repeated by either local edit.
+    preview = np.asarray(Image.open(io.BytesIO(client.get(edited['preview_url']).content)))
+    prepared = prepare(client, photo['id'])['result']
+    base = np.asarray(Image.open(io.BytesIO(client.get(prepared['base_url']).content)))
+    np.testing.assert_array_equal(base, preview)
+    assert calls == [.4, 1, 1]
+    saved = save(client, edited, prepared).json()['photo']
+    snapshot = store.photo(photo['id'])
+    expected, _ = store.lighting.render(snapshot, base)
+    np.testing.assert_array_equal(np.asarray(Image.open(io.BytesIO(client.get(saved['preview_url']).content))), expected)
+    response = client.post('/api/jobs', json={'ids': [photo['id']], 'format': 'png', 'max_side': 0})
+    job = wait_job(client, response.json()['job']['id'], '/api/jobs/')
+    assert job['status'] == 'completed', job
+    np.testing.assert_array_equal(np.asarray(Image.open(job['items'][0]['path'])), expected)
+    assert calls == [.4, 1, 1]
+
+
+def test_plain_and_local_previews_share_full_resolution_grid_and_png_export(api, monkeypatch):
+    client, store, _ = api
+    source = np.full((1800, 900, 3), [70, 100, 130], np.uint8)
+    blob = io.BytesIO()
+    Image.fromarray(source).save(blob, 'PNG')
+    photo = client.post('/api/import', files={'files': ('large.png', blob.getvalue(), 'image/png')}).json()['photos'][0]
+    calls = []
+    def scale_sensitive(rgb, params, analysis, strokes=None):
+        calls.append(rgb.shape)
+        offset = rgb.shape[0] // 200 if params['exposure'] == 0 else 20
+        return np.clip(rgb.astype(np.int16) + offset, 0, 255).astype(np.uint8), {'warnings': []}
+    monkeypatch.setattr(store.engine, 'render', scale_sensitive)
+    endpoint = f"/api/photos/{photo['id']}/preview"
+    saved = client.post(endpoint, json={}).json()['photo']
+    global_pixels = np.asarray(Image.open(io.BytesIO(client.get(saved['preview_url']).content)))
+    assert global_pixels.shape == (1600, 800, 3)
+    assert np.array_equal(global_pixels[0, 0], source[0, 0] + 9)
+    edited = client.post(endpoint, json={'local_adjustment': {
+        'rect': {'x': .25, 'y': .25, 'width': .5, 'height': .5}, 'params': {'exposure': 1}}}).json()['photo']
+    response = client.get(edited['preview_url'])
+    assert response.headers['content-type'].startswith('image/png')
+    preview = np.asarray(Image.open(io.BytesIO(response.content)))
+    np.testing.assert_array_equal(preview[:400], global_pixels[:400])
+    np.testing.assert_array_equal(preview[:, :200], global_pixels[:, :200])
+    assert calls == [source.shape, source.shape]
+    response = client.post('/api/jobs', json={'ids': [photo['id']], 'format': 'png', 'max_side': 1600})
+    job = wait_job(client, response.json()['job']['id'], '/api/jobs/')
+    assert job['status'] == 'completed', job
+    np.testing.assert_array_equal(np.asarray(Image.open(job['items'][0]['path'])), preview)
+    assert calls == [source.shape, source.shape]

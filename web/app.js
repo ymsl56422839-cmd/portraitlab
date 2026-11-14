@@ -3,6 +3,7 @@
 const $ = id => document.getElementById(id);
 const state = { token:'', boot:null, photos:[], selected:new Set(), current:null, view:'result', secondaryView:'original', layout:'single', module:'retouch', split:50, secondarySplit:50, zoom:1, fitZoom:true, centerX:.5, centerY:.5, brush:null, brushRadius:.04, busy:0, locked:false, exportIds:null, jobs:null, jobTimer:null, histories:new Map(), seq:new Map(), dirty:new Set(), pending:new Map(), timers:new Map(), importing:false, importTarget:null, batchUndo:null, hardware:null };
 const definitions = [
+ {key:'acne',name:'去痘强度',min:0,max:1,step:.01,section:'skinControls'},
  {key:'smooth',name:'柔化肤质',min:0,max:1,step:.01,section:'skinControls'},
  {key:'blemishes',name:'淡化瑕疵',min:0,max:1,step:.01,section:'skinControls'},
  {key:'even',name:'均匀肤色',min:0,max:1,step:.01,section:'skinControls'},
@@ -15,6 +16,9 @@ const definitions = [
 ];
 const photo = id => state.photos.find(p => p.id === (id || state.current));
 const clone = value => JSON.parse(JSON.stringify(value));
+function editingParams(p=photo()){return window.PortraitSelection?.parameters(p)||p?.params;}
+function setEditingParams(p,params){if(window.PortraitSelection?.isEditing(p))p.local_adjustment.params=clone(params);else p.params=clone(params);}
+function editScopeLabel(p=photo()){return window.PortraitSelection?.isEditing(p)?'仅矩形选区内':'当前照片全局修片';}
 function toast(message,error=false){const el=document.createElement('div');el.className='toast'+(error?' error':'');el.textContent=message;if(error)el.setAttribute('role','alert');$('toasts').replaceChildren(el);return el;}
 function updateConnectionStatus(){
  if(!state.token||state.importing)return;
@@ -89,19 +93,19 @@ for(const def of definitions){
  const row=document.createElement('div');row.className='slider-row';const label=document.createElement('label');label.className='slider-label';label.htmlFor='control-'+def.key;const name=document.createElement('span');name.textContent=def.name;const out=document.createElement('output');out.id='value-'+def.key;label.append(name,out);
  const input=document.createElement('input');Object.assign(input,{type:'range',id:'control-'+def.key,min:def.min,max:def.max,step:def.step,disabled:true});input.setAttribute('aria-label',def.name);row.append(label,input);$(def.section).append(row);
  input.addEventListener('pointerdown',saveHistory);input.addEventListener('keydown',e=>{if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','PageUp','PageDown','Home','End'].includes(e.key))saveHistory();});
- input.addEventListener('input',()=>{const p=photo();if(!p||state.locked)return;const value=Number(input.value);p.params[def.key]=value;updateSlider(def,value);clearPresetActive();queuePreview(p.id);});
- input.addEventListener('change',()=>{if(photo()&&!state.locked)toast(`《${photo().name}》已微调${def.name}，仅当前照片。`);});
- input.addEventListener('dblclick',()=>{if(!photo()||state.locked)return;saveHistory();photo().params[def.key]=state.boot.defaults[def.key];updateSlider(def,photo().params[def.key]);queuePreview(state.current,0);});
+ input.addEventListener('input',()=>{const p=photo();if(!p||state.locked)return;const value=Number(input.value);editingParams(p)[def.key]=value;updateSlider(def,value);clearPresetActive();queuePreview(p.id);});
+ input.addEventListener('change',()=>{if(photo()&&!state.locked)toast(`《${photo().name}》已微调${def.name}，${editScopeLabel()}。`);});
+ input.addEventListener('dblclick',()=>{if(!photo()||state.locked)return;saveHistory();const baseline=window.PortraitSelection?.isEditing()?window.PortraitSelection.neutral():state.boot.defaults;editingParams()[def.key]=baseline[def.key];updateSlider(def,editingParams()[def.key]);queuePreview(state.current,0);});
 }
 function clearPresetActive(){window.PortraitPresets?.refresh();}
-function renderControls(){const p=photo();const params=p?.params||state.boot?.defaults||{};for(const def of definitions){updateSlider(def,Number(params[def.key]??(def.key==='saturation'?1:0)));$('control-'+def.key).disabled=!p||state.locked;}
+function renderControls(){const p=photo();const params=editingParams(p)||state.boot?.defaults||{};for(const def of definitions){updateSlider(def,Number(params[def.key]??(def.key==='saturation'?1:0)));$('control-'+def.key).disabled=!p||state.locked;}
  for(const id of ['resetBtn','holdOriginal','protectBrush','restoreBrush','clearMask'])$(id).disabled=!p||state.locked;
  document.querySelectorAll('[data-region]').forEach(b=>{b.disabled=!p||state.locked;b.classList.toggle('active',b.dataset.region===params.region);});
  document.querySelectorAll('#presets .preset-apply').forEach(b=>b.disabled=!p||state.locked);$('undoBtn').disabled=state.locked||!(p&&state.histories.get(p.id)?.length);$('brushCanvas').style.pointerEvents=state.locked?'none':'';clearPresetActive();updateCounts();for(const id of ['importBtn','importSmall','importEmpty','importIcon','canvasImport','importFolder','exportImportFiles','exportImportFolder','aiImportFiles','aiImportFolder']){const button=$(id);if(button)button.disabled=state.locked||state.importing;}$('startExport').disabled=state.locked||state.importing;document.querySelectorAll('[data-module]').forEach(button=>button.disabled=state.locked||!state.token);document.dispatchEvent(new Event('portraitlab-edit-state'));
 }
-function recordHistory(id,snapshot){const history=state.histories.get(id)||[],current=clone(snapshot);if(JSON.stringify(history.at(-1))!==JSON.stringify(current))history.push(current);if(history.length>30)history.shift();state.histories.set(id,history);if(id===state.current)$('undoBtn').disabled=state.locked||!history.length;}
-function saveHistory(){const p=photo();if(!p||state.locked)return;recordHistory(p.id,{params:p.params,strokes:p.strokes||[],...(p.lighting?{lighting:p.lighting,lighting_geometry:p.lighting_geometry??null}:{})});}
-async function undo(){if(state.locked||!await settleLighting('撤销已保存调整'))return;const p=photo();const prior=p&&state.histories.get(p.id)?.pop();if(!prior)return;p.params=prior.params;p.strokes=prior.strokes;if(prior.lighting)p.lighting=prior.lighting;if(Object.hasOwn(prior,'lighting_geometry'))p.lighting_geometry=prior.lighting_geometry;renderControls();queuePreview(p.id,0);}
+function recordHistory(id,snapshot){const history=state.histories.get(id)||[],current=clone({local_adjustment:photo(id)?.local_adjustment??null,...snapshot});if(JSON.stringify(history.at(-1))!==JSON.stringify(current))history.push(current);if(history.length>30)history.shift();state.histories.set(id,history);if(id===state.current)$('undoBtn').disabled=state.locked||!history.length;}
+function saveHistory(){const p=photo();if(!p||state.locked)return;recordHistory(p.id,{params:p.params,strokes:p.strokes||[],local_adjustment:p.local_adjustment??null,...(p.lighting?{lighting:p.lighting,lighting_geometry:p.lighting_geometry??null}:{})});}
+async function undo(){if(state.locked||!await settleLighting('撤销已保存调整'))return;window.PortraitSelection?.cancelDrag();const p=photo();const prior=p&&state.histories.get(p.id)?.pop();if(!prior)return;p.params=prior.params;p.strokes=prior.strokes;p.local_adjustment=prior.local_adjustment??null;if(prior.lighting)p.lighting=prior.lighting;if(Object.hasOwn(prior,'lighting_geometry'))p.lighting_geometry=prior.lighting_geometry;renderControls();queuePreview(p.id,0);}
 async function selectPhoto(id){if(state.locked||!photo(id)||id===state.current)return false;if(!await settleLighting('切换照片'))return false;if(drawing)finishStroke();state.current=id;state.fitZoom=true;state.centerX=state.centerY=.5;state.brush=null;$('emptyState').hidden=true;$('stageHolder').hidden=false;$('secondaryStageHolder').hidden=false;renderLibrary();renderControls();updateBrush();displayPhoto();const p=photo();$('renderBadge').hidden=!state.pending.has(id);if(p.status!=='ready'&&!state.locked)queuePreview(id,0);document.dispatchEvent(new CustomEvent('portraitlab-photo-selected',{detail:{id}}));return true;}
 function setImage(img,url){if(url&&img.getAttribute('src')!==url)img.src=url;}
 function displayPhoto(){const p=photo();if(!p)return;
@@ -143,7 +147,7 @@ function renderViews(){
   for(const b of document.querySelectorAll(`[${pane.attribute}]`)){const active=b.getAttribute(pane.attribute)===view;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active));b.disabled=!p;}
   const before=stage.querySelector('.left-label'),after=stage.querySelector('.right-label');
   before.textContent=p?.comparison_kind==='generation_input'?'生成前 · 对齐裁切':p?.generation?'生成底图':'原图';after.textContent='处理结果';before.hidden=after.hidden=!p||view!=='compare';
-  if(name==='primary'){$('maskImage').hidden=view!=='mask'||!p?.mask_url;stage.classList.toggle('brush-on',!!state.brush&&view==='mask'&&!previewHolding);}
+  if(name==='primary'){const maskUrl=window.PortraitSelection?.isEditing(p)?p?.local_mask_url:p?.mask_url;setImage($('maskImage'),maskUrl);$('maskImage').hidden=view!=='mask'||!maskUrl;stage.classList.toggle('brush-on',!!state.brush&&view==='mask'&&!previewHolding);}
   updateSplitGeometry(pane);
  }
  $('holdOriginal').setAttribute('aria-pressed',String(previewHolding));
@@ -200,7 +204,7 @@ for(const [name,pane] of Object.entries(previewPanes)){
  const endSplit=e=>{if(dragPointer===null||e.pointerId!==dragPointer)return;dragPointer=null;if(handle.hasPointerCapture(e.pointerId))handle.releasePointerCapture(e.pointerId);};
  for(const event of ['pointerup','pointercancel','lostpointercapture'])handle.addEventListener(event,endSplit);
  handle.addEventListener('keydown',e=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;e.preventDefault();setSplit(e.key==='Home'?0:e.key==='End'?100:state[pane.split]+(e.key==='ArrowLeft'?-1:1)*(e.shiftKey?10:1),name);});
- viewport.addEventListener('wheel',e=>{if(!photo())return;e.preventDefault();const pixels=e.deltaY*(e.deltaMode===1?16:e.deltaMode===2?viewport.clientHeight:1);setZoom(state.zoom*Math.exp(-clamp(pixels,-500,500)*.0015),name,e.clientX,e.clientY);},{passive:false});
+ viewport.addEventListener('wheel',e=>{if(!photo())return;e.preventDefault();if(window.PortraitSelection?.isDragging())return;const pixels=e.deltaY*(e.deltaMode===1?16:e.deltaMode===2?viewport.clientHeight:1);setZoom(state.zoom*Math.exp(-clamp(pixels,-500,500)*.0015),name,e.clientX,e.clientY);},{passive:false});
  viewport.addEventListener('pointerdown',e=>{
   if(!photo()||![0,1].includes(e.button)||e.target.closest('.compare-handle,.light-widget,.light-widget-handle,.lighting-overlay-control'))return;
   if(name==='primary'&&state.brush&&e.button===0&&e.target===$('brushCanvas'))return;
@@ -219,9 +223,9 @@ function queuePreview(id,delay=420){state.seq.set(id,(state.seq.get(id)||0)+1);s
 function runPreview(id){
  if(state.pending.has(id))return state.pending.get(id);if(!photo(id))return Promise.resolve();clearPreviewTimer(id);
  // One request in flight per photo. New edits replace the next draft, never the current request.
- const promise=(async()=>{let result;while(true){const p=photo(id);if(!p)return;const seq=state.seq.get(id)||0;const draft=clone({params:p.params,strokes:p.strokes||[],...(p.lighting?{lighting:p.lighting,lighting_geometry:p.lighting_geometry??null}:{})});if(id===state.current)$('renderBadge').hidden=false;
+ const promise=(async()=>{let result;while(true){const p=photo(id);if(!p)return;const seq=state.seq.get(id)||0;const draft=clone({params:p.params,strokes:p.strokes||[],local_adjustment:p.local_adjustment??null,...(p.lighting?{lighting:p.lighting,lighting_geometry:p.lighting_geometry??null}:{})});if(id===state.current)$('renderBadge').hidden=false;
   try{result=await post(`/api/photos/${id}/preview`,draft);}catch(error){if((state.seq.get(id)||0)!==seq)continue;throw error;}
-  if((state.seq.get(id)||0)===seq){state.dirty.delete(id);if(result.meta?.processing_device){state.lastProcessingDevice=result.meta.processing_device;document.dispatchEvent(new Event('portraitlab-render-device'));}mergePhoto(result.photo);if(state.current===id){displayPhoto();renderControls();}renderLibrary();return result;}
+  if((state.seq.get(id)||0)===seq){if(result.meta?.stale)throw new Error('照片状态已被其他操作更新，本次预览尚未完成；请重新应用调整。');state.dirty.delete(id);if(result.meta?.processing_device){state.lastProcessingDevice=result.meta.processing_device;document.dispatchEvent(new Event('portraitlab-render-device'));}mergePhoto(result.photo);if(state.current===id){displayPhoto();renderControls();}renderLibrary();return result;}
   // An older result must not overwrite unsent sliders, brush marks or undo state.
   clearPreviewTimer(id);
  }})().finally(()=>{if(state.pending.get(id)===promise)state.pending.delete(id);if(state.current===id)$('renderBadge').hidden=true;updateConnectionStatus();});state.pending.set(id,promise);updateConnectionStatus();return promise;
@@ -277,11 +281,11 @@ function hasFiles(event){return Array.from(event.dataTransfer?.types||[]).includ
   try{await importFiles(await collectDroppedFiles(entries,fallback),target);}catch(error){toast('无法读取拖入的文件夹：'+errorMessage(error),true);}
  });
 $('selectAll').onchange=e=>{state.selected=e.target.checked?new Set(state.photos.map(p=>p.id)):new Set();renderLibrary();};
-document.querySelectorAll('[data-region]').forEach(b=>b.onclick=()=>{if(!photo()||state.locked)return;saveHistory();photo().params.region=b.dataset.region;renderControls();queuePreview(state.current,0);});
+document.querySelectorAll('[data-region]').forEach(b=>b.onclick=()=>{if(!photo()||state.locked)return;saveHistory();editingParams().region=b.dataset.region;renderControls();queuePreview(state.current,0);});
 function buildPresets(){window.PortraitPresets?.initialize();}
-$('resetBtn').onclick=()=>{if(!photo()||state.locked)return;saveHistory();photo().params=clone(state.boot.defaults);renderControls();queuePreview(state.current,0);toast(`已为《${photo().name}》恢复默认参数，仅当前照片。`);};$('undoBtn').onclick=undo;
+$('resetBtn').onclick=()=>{if(!photo()||state.locked)return;saveHistory();setEditingParams(photo(),window.PortraitSelection?.isEditing()?window.PortraitSelection.neutral():state.boot.defaults);renderControls();queuePreview(state.current,0);toast(`已为《${photo().name}》恢复参数，${editScopeLabel()}。`);};$('undoBtn').onclick=undo;
 function updateBrush(){$('protectBrush').classList.toggle('active',state.brush==='protect');$('restoreBrush').classList.toggle('active',state.brush==='restore');$('brushCursor').hidden=true;renderViews();}
-function toggleBrush(mode){if(!photo()||state.locked)return;state.brush=state.brush===mode?null:mode;if(state.brush)setView('mask');updateBrush();}
+function toggleBrush(mode){if(!photo()||state.locked||window.PortraitSelection?.isSelecting())return;state.brush=state.brush===mode?null:mode;if(state.brush)setView('mask');updateBrush();}
 $('protectBrush').onclick=()=>toggleBrush('protect');$('restoreBrush').onclick=()=>toggleBrush('restore');$('brushSize').oninput=e=>{state.brushRadius=Number(e.target.value)/100;$('brushSizeValue').textContent=e.target.value+'%';};
 let drawing=null;const canvas=$('brushCanvas');function pointerPoint(e){const rect=canvas.getBoundingClientRect();return [Math.max(0,Math.min(1,(e.clientX-rect.left)/rect.width)),Math.max(0,Math.min(1,(e.clientY-rect.top)/rect.height))];}
 canvas.addEventListener('pointermove',e=>{if(!state.brush||state.locked||previewHolding)return;const pt=pointerPoint(e);const diameter=state.brushRadius*Math.min(canvas.clientWidth,canvas.clientHeight)*2;const cursor=$('brushCursor');cursor.hidden=false;Object.assign(cursor.style,{width:diameter+'px',height:diameter+'px',left:pt[0]*canvas.clientWidth+'px',top:pt[1]*canvas.clientHeight+'px'});if(drawing){drawing.points.push(pt);const ctx=canvas.getContext('2d');ctx.lineWidth=state.brushRadius*Math.min(canvas.width,canvas.height)*2;ctx.lineCap='round';ctx.lineJoin='round';ctx.strokeStyle=drawing.mode==='protect'?'#f18da58c':'#abd7b6a6';const last=drawing.points.at(-2);ctx.beginPath();ctx.moveTo(last[0]*canvas.width,last[1]*canvas.height);ctx.lineTo(pt[0]*canvas.width,pt[1]*canvas.height);ctx.stroke();}});
@@ -322,5 +326,9 @@ document.addEventListener('keyup',event=>{if(event.code==='Space')holdBefore(fal
 $('holdOriginal').addEventListener('keydown',event=>{if(event.key===' '||event.key==='Enter'){event.preventDefault();holdBefore(true);}});$('holdOriginal').addEventListener('keyup',()=>holdBefore(false));$('holdOriginal').addEventListener('blur',()=>holdBefore(false));
 document.querySelector('.brand').addEventListener('click',event=>event.preventDefault());
 window.addEventListener('beforeunload',event=>{if(state.dirty.size||state.pending.size||state.importing||window.PortraitLighting?.isDirty?.()){event.preventDefault();event.returnValue='';}});
-async function boot(){try{state.boot=await api('/api/bootstrap');state.token=state.boot.token;buildPresets();modelInfo();const result=await api('/api/photos');state.photos=result.photos;state.removalUndo=result.last_removed_ids||[];renderLibrary();renderControls();renderViews();$('connectionStatus').textContent='已就绪';if(state.photos.length){state.selected.add(state.photos[0].id);await selectPhoto(state.photos[0].id);}const jobs=await api('/api/jobs');const active=jobs.jobs.find(j=>activeStatuses.includes(j.status));if(active){showJob(active);pollJob();}document.dispatchEvent(new Event('portraitlab-ready'));}catch(error){$('connectionStatus').textContent='无法连接处理服务';toast(errorMessage(error),true);}}
+function requirePatchBackend(data){
+ if(data.capabilities?.local_adjustments===true)return;
+ state.locked=true;const error=new Error('软件更新尚未生效：请关闭全部照影窗口后重新打开，再使用矩形选区和新预设。');error.name='UpdateRequired';throw error;
+}
+async function boot(){try{state.boot=await api('/api/bootstrap');requirePatchBackend(state.boot);state.token=state.boot.token;buildPresets();modelInfo();const result=await api('/api/photos');state.photos=result.photos;state.removalUndo=result.last_removed_ids||[];renderLibrary();renderControls();renderViews();$('connectionStatus').textContent='已就绪';if(state.photos.length){state.selected.add(state.photos[0].id);await selectPhoto(state.photos[0].id);}const jobs=await api('/api/jobs');const active=jobs.jobs.find(j=>activeStatuses.includes(j.status));if(active){showJob(active);pollJob();}document.dispatchEvent(new Event('portraitlab-ready'));}catch(error){$('connectionStatus').textContent=error.name==='UpdateRequired'?'请关闭全部窗口后重启':'无法连接处理服务';renderControls();toast(errorMessage(error),true);}}
 boot();

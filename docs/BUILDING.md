@@ -32,10 +32,12 @@ $aiPython = Join-Path $buildRoot 'ai-env\Scripts\python.exe'
 
 经典依赖锁定在 `requirements.lock.txt`；AI 使用 `requirements-relight.lock.txt`，其中 Torch 2.7.1+cu128、Diffusers 0.27.2、Transformers 4.36.2、NumPy 1.26.4、Pillow 10.4.0。CUDA 运行库随 Torch wheel 提供，使用 NVIDIA GPU 仍需要兼容驱动；AI 可以选择 CPU 模式。
 
-## 构建完整目录
+## 构建完整目录（重建参考）
+
+0.4.1 正常发行使用既有 0.4.0 完整包加小补丁，不重复执行完整运行时打包。下列流程保留用于从零重建；本次补丁制作见文末。
 
 ```powershell
-$portable = Join-Path $buildRoot 'PortraitLab-0.4.0-Windows'
+$portable = Join-Path $buildRoot 'PortraitLab-0.4.1-Windows'
 $packWork = Join-Path $buildRoot 'packaging-work'
 & $corePython -B packaging\build_portable.py `
   --destination $portable --work $packWork `
@@ -132,4 +134,21 @@ ic-light/iclight_sd15_fc.safetensors
   --package $portable --output (Join-Path $buildRoot 'upgrade')
 ```
 
-0.4.0 沿用 0.2.0／0.3.0 的两套 Python 依赖，升级包面向已有完整运行时的这两个版本。升级包提供应用源码、新 EXE、WebView2 DLL、文档和许可，不带原有运行时与用户数据。用户需先在各窗口保留或放弃草稿，关闭所有照影窗口，再将升级内容解压合并到已有软件目录；保留 Data 和 Cache，不能只复制 EXE。新安装应使用完整包。升级包生成后必须在旧版隔离副本验证启动与数据保留。
+0.4.1 沿用 0.4.0 的两套 Python 依赖和现有模型。`make_upgrade.py` 的兼容基线包含 0.2.0、0.3.0、0.4.0；本次主要升级路径是 **0.4.0 完整包 + 0.4.1 小补丁**。新用户同样组合这两项，无需另发完整大包。补丁仅包含应用源码、EXE、WebView2 DLL、文档和许可，不收录 `runtime`、`AI`、`Data`、`Cache` 或模型权重。
+
+制作补丁时，使用已有 0.4.0 包的隔离暂存副本，保留已校验运行时和许可清单，不在用户工作区直接构建。只更新应用和需要更新的启动器，再生成 Upgrade；不需要运行 `make_release.py` 或 `make_share.py` 重压大运行时。
+
+```powershell
+$patchStage = Join-Path $buildRoot 'patch-stage\PortraitLab-0.4.1-Windows'
+# 此目录应已准备好隔离的 0.4.0 基础程序与运行时，不含用户 Data / Cache。
+& $corePython -B packaging\build_portable.py `
+  --destination $patchStage --work $packWork --stage app
+& $corePython -B packaging\build_portable.py `
+  --destination $patchStage --work $packWork --stage launcher
+& $corePython -B packaging\make_upgrade.py `
+  --package $patchStage --output (Join-Path $buildRoot 'upgrade-0.4.1')
+```
+
+升级器核对应用源码与 WebView2 清单，再验证 ZIP CRC，输出 SHA-256 和包含基线版本的升级清单。生成后必须将补丁解压到 0.4.0 隔离副本，验证实际 EXE、原 Data／Cache 与运行时保留、旧照片／收藏／预设、矩形调整的重启恢复及 CPU／CUDA 结果。`packaging/verify_local_adjustments.py` 用于本次真实包局部调整验收，具体参数见其 `--help`；不能用源码测试替代实际补丁验收。
+
+用户需先在各窗口保留或放弃草稿，关闭所有照影窗口，再将 ZIP 全部内容解压到原软件目录，与 `PortraitLab.exe` 同级。不能只复制 EXE，也不能在原目录下新增一层软件目录。

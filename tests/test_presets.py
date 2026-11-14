@@ -5,7 +5,7 @@ import json
 import pytest
 
 from portraitlab.engine import DEFAULT_PARAMS, validate_params
-from portraitlab.presets import BUILTIN_IDS, MAX_CUSTOM_PRESETS, builtin_presets
+from portraitlab.presets import BUILTIN_IDS, MAX_CUSTOM_PRESETS, NEUTRAL, PORTRAIT_GROUPS, builtin_presets
 from portraitlab.server import PortraitStore
 from test_server import api, import_one
 
@@ -25,20 +25,24 @@ def test_builtin_recipes_are_distinct_complete_and_described(api):
     client, _ = api
     catalog = client.get('/api/presets').json()
     recipes = catalog['presets']
-    assert len(recipes) == 22
+    assert len(recipes) == 52
     assert len({p['id'] for p in recipes}) == len(recipes)
     assert len({p['name'] for p in recipes}) == len(recipes)
     assert len({json.dumps(p['params'], sort_keys=True) for p in recipes}) == len(recipes)
     categories = {group['id'] for group in catalog['categories']}
+    assert catalog['portrait_groups'] == list(PORTRAIT_GROUPS)
+    assert [group['name'] for group in catalog['portrait_groups']] == ['通用', '长者人像', '成人人像', '少年人像']
+    assert {group: sum(p['portrait_group'] == group for p in recipes) for group in ('general', 'senior', 'adult', 'youth')} == {'general': 26, 'senior': 8, 'adult': 10, 'youth': 8}
     for recipe in recipes:
         assert recipe['builtin'] is True
         assert recipe['category'] in categories
+        assert recipe['portrait_group'] in {group['id'] for group in PORTRAIT_GROUPS}
         assert recipe['description'] and recipe['tags']
         assert set(recipe['params']) == set(DEFAULT_PARAMS)
         assert validate_params(recipe['params']) == recipe['params']
     # A reset does not leave latent beauty or color edits when strength changes.
     original = next(p for p in recipes if p['id'] == 'original')['params']
-    assert all(original[key] == 0 for key in ('smooth', 'blemishes', 'even', 'texture', 'exposure', 'relight', 'warmth', 'opacity'))
+    assert all(original[key] == 0 for key in ('smooth', 'blemishes', 'acne', 'even', 'texture', 'exposure', 'relight', 'warmth', 'opacity'))
     assert original['saturation'] == 1
     returned = builtin_presets()
     returned[0]['params']['smooth'] = 1
@@ -46,6 +50,7 @@ def test_builtin_recipes_are_distinct_complete_and_described(api):
     boot = client.get('/api/bootstrap').json()
     assert boot['presets'] == recipes
     assert boot['preset_categories'] == catalog['categories']
+    assert boot['preset_portrait_groups'] == catalog['portrait_groups']
     assert boot['preset_favorites'] == []
 
 
@@ -86,7 +91,67 @@ def test_legacy_workspace_without_preset_fields_loads(api):
     loaded = reopen(app.state.store)
     try:
         assert loaded.preset_catalog()['favorites'] == []
-        assert len(loaded.preset_catalog()['presets']) == 22
+        assert len(loaded.preset_catalog()['presets']) == 52
+    finally:
+        close_store(loaded)
+
+
+def test_legacy_recipe_parameters_and_ids_remain_unchanged():
+    # 0.4.0 catalog: a new, neutral acne field must not silently change old looks.
+    legacy = {
+        'natural': dict(smooth=.25, blemishes=.20, even=.15, texture=.10, opacity=.75),
+        'texture_first': dict(smooth=.08, blemishes=.10, even=.12, texture=0, opacity=.65),
+        'clean_portrait': dict(smooth=.18, blemishes=.40, even=.16, texture=.06, opacity=.75),
+        'soft_portrait': dict(smooth=.45, blemishes=.40, even=.25, texture=.25, opacity=.85),
+        'studio_finish': dict(smooth=.32, blemishes=.48, even=.36, texture=.12, opacity=.85),
+        'light_makeup': dict(smooth=.22, blemishes=.16, even=.18, texture=.07, opacity=.70),
+        'even_skin': dict(smooth=.08, blemishes=.08, even=.45, texture=.02, opacity=.80),
+        'gentle_texture': dict(smooth=.12, blemishes=.08, even=.08, texture=.30, opacity=.65),
+        'face_bright': dict(relight=.38, opacity=.85),
+        'backlight': dict(smooth=.12, blemishes=.10, even=.10, relight=.62, opacity=.85),
+        'dim_scene': dict(exposure=.45, opacity=.85), 'lower_exposure': dict(exposure=-.40, opacity=.85),
+        'face_dim': dict(relight=-.25, opacity=.80),
+        'warm_portrait': dict(smooth=.12, blemishes=.10, even=.10, warmth=.35, saturation=.95, opacity=.80),
+        'cool_clean': dict(warmth=-.25, exposure=.10, saturation=.92, opacity=.80),
+        'muted_color': dict(saturation=.70, warmth=.10, opacity=.85),
+        'vivid_color': dict(saturation=1.18, exposure=.05, opacity=.80),
+        'warm_muted': dict(saturation=.45, warmth=.48, exposure=-.06, opacity=.90),
+        'monochrome': dict(saturation=0.0, exposure=.08, opacity=1.0),
+        'body_natural': dict(smooth=.22, blemishes=.18, even=.18, texture=.08, region='skin', opacity=.75),
+        'body_even': dict(smooth=.12, blemishes=.12, even=.42, texture=.04, region='skin', opacity=.80),
+        'original': dict(opacity=0.0),
+    }
+    catalog = {item['id']: item for item in builtin_presets()}
+    assert len(legacy) == 22 and legacy.keys() <= BUILTIN_IDS
+    for identifier, params in legacy.items():
+        assert catalog[identifier]['params'] == {**NEUTRAL, **params}
+        assert catalog[identifier]['portrait_group'] == 'general'
+
+
+def test_age_groups_are_manual_gentle_and_acne_is_separate():
+    for preset in builtin_presets():
+        params = preset['params']
+        if preset['portrait_group'] == 'senior':
+            assert all(params[key] == 0 for key in ('smooth', 'blemishes', 'texture', 'acne'))
+        if preset['portrait_group'] == 'youth':
+            assert all(params[key] == 0 for key in ('smooth', 'blemishes', 'texture'))
+        if params['acne']:
+            assert params['smooth'] == params['blemishes'] == params['texture'] == 0
+
+
+def test_legacy_custom_without_acne_and_all_old_favorites_survive(api):
+    client, app = api
+    created = client.post('/api/presets', json={'name': '旧自定义', 'params': {'smooth': .13}}).json()['preset']
+    legacy_ids = [item['id'] for item in builtin_presets()[:22]]
+    app.state.store.state['presets'][created['id']]['params'].pop('acne')
+    app.state.store.state['preset_favorites'] = legacy_ids + [created['id']]
+    app.state.store.persist()
+    loaded = reopen(app.state.store)
+    try:
+        catalog = loaded.preset_catalog()
+        assert catalog['favorites'] == legacy_ids + [created['id']]
+        custom = next(item for item in catalog['presets'] if item['id'] == created['id'])
+        assert custom['params']['acne'] == 0 and custom['params']['smooth'] == .13
     finally:
         close_store(loaded)
 

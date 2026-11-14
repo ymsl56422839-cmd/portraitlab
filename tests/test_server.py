@@ -242,3 +242,170 @@ def test_state_and_analysis_survive_restart(api):
     finally:
         restarted.state.store.queue.put(None)
         second.close()
+
+
+def local_edit(exposure=1, **rect):
+    return {"rect": {"x": .25, "y": .25, "width": .5, "height": .5, **rect},
+            "params": {"exposure": exposure}}
+
+
+def preview_pixels(client, photo):
+    response = client.get(photo["preview_url"])
+    assert response.headers["content-type"].startswith("image/png")
+    return np.asarray(Image.open(io.BytesIO(response.content)))
+
+
+def test_local_move_resize_undo_and_reset_preserve_global_pixels(api):
+    client, app = api
+    photo = import_one(client)
+    endpoint = f"/api/photos/{photo['id']}/preview"
+    baseline = client.post(endpoint, json={"params": {"exposure": .5}}).json()["photo"]
+    global_pixels = preview_pixels(client, baseline)
+    edited = client.post(endpoint, json={"local_adjustment": local_edit()}).json()["photo"]
+    pixels = preview_pixels(client, edited)
+    outside = np.ones(pixels.shape[:2], bool)
+    outside[10:30, 16:48] = False
+    np.testing.assert_array_equal(pixels[outside], global_pixels[outside])
+    np.testing.assert_array_equal(pixels[20, 30], global_pixels[20, 30] + 10)
+    assert edited["params"] == baseline["params"]
+    moved = client.post(endpoint, json={"local_adjustment": local_edit(x=.5, y=0, width=.25, height=.5)}).json()["photo"]
+    moved_pixels = preview_pixels(client, moved)
+    np.testing.assert_array_equal(moved_pixels[20:, :], global_pixels[20:, :])
+    np.testing.assert_array_equal(moved_pixels[5, 40], global_pixels[5, 40] + 10)
+    undo = client.post(endpoint, json={"local_adjustment": edited["local_adjustment"]}).json()["photo"]
+    np.testing.assert_array_equal(preview_pixels(client, undo), pixels)
+    retained = client.post(endpoint, json={}).json()["photo"]
+    assert retained["local_adjustment"] == edited["local_adjustment"]
+    reset = client.post(endpoint, json={"local_adjustment": None}).json()["photo"]
+    assert reset["local_adjustment"] is None
+    np.testing.assert_array_equal(preview_pixels(client, reset), global_pixels)
+
+
+def test_invalid_local_edit_and_failed_render_are_atomic(api, monkeypatch):
+    client, app = api
+    photo = import_one(client)
+    endpoint = f"/api/photos/{photo['id']}/preview"
+    assert client.post(endpoint, json={"local_adjustment": local_edit()}).status_code == 200
+    before = json.loads(json.dumps(app.state.store.photo(photo["id"])))
+    bad = client.post(endpoint, json={"params": {"exposure": .9}, "local_adjustment": local_edit(width=2)})
+    assert bad.status_code == 400
+    assert app.state.store.photo(photo["id"]) == before
+    monkeypatch.setattr(app.state.store.lighting, "retouch_base", lambda *args: (_ for _ in ()).throw(OSError("test cache failure")))
+    assert client.post(endpoint, json={"local_adjustment": None}).status_code == 500
+    assert app.state.store.photo(photo["id"]) == before
+    assert json.loads(app.state.store.state_path.read_text(encoding="utf-8"))["photos"][photo["id"]] == before
+
+
+def test_local_export_snapshot_restart_and_global_batch_independence(api):
+    client, app = api
+    first, second = import_one(client), import_one(client)
+    endpoint = f"/api/photos/{first['id']}/preview"
+    edited = client.post(endpoint, json={"params": {"exposure": .4}, "local_adjustment": local_edit()}).json()["photo"]
+    expected = preview_pixels(client, edited)
+    response = client.post("/api/jobs", json={"ids": [first["id"]], "format": "png", "max_side": 0})
+    client.post("/api/settings/apply", json={"ids": [first["id"], second["id"]], "params": {"exposure": .7}})
+    assert app.state.store.photo(first["id"])["local_adjustment"] == edited["local_adjustment"]
+    assert app.state.store.photo(second["id"])["local_adjustment"] is None
+    job = wait_job(client, response.json()["job"]["id"])
+    assert job["status"] == "completed", job
+    np.testing.assert_array_equal(np.asarray(Image.open(job["items"][0]["path"])), expected)
+    sidecar = json.loads(Path(job["items"][0]["sidecar"]).read_text(encoding="utf-8"))
+    assert sidecar["local_adjustment"] == edited["local_adjustment"]
+    assert sidecar["params"]["exposure"] == .4
+    app.state.store.queue.put(None)
+    app.state.store.worker.join(5)
+    restarted = create_app(app.state.store.data)
+    with TestClient(restarted, base_url="http://127.0.0.1:18765") as again:
+        again.headers["X-PortraitLab-Token"] = again.get("/api/bootstrap").json()["token"]
+        saved = next(p for p in again.get("/api/photos").json()["photos"] if p["id"] == first["id"])
+        assert saved["local_adjustment"] == edited["local_adjustment"]
+        restored = again.post(endpoint, json={"params": edited["params"]}).json()["photo"]
+        np.testing.assert_array_equal(preview_pixels(again, restored), expected)
+
+
+def test_capabilities_and_legacy_preview_refresh_preserve_edits(api):
+    client, app = api
+    bootstrap = client.get("/api/bootstrap").json()
+    assert bootstrap["capabilities"] == {"local_adjustments": True, "canonical_preview": True,
+                                          "canonical_preview_contract": server.PREVIEW_CONTRACT}
+    assert bootstrap["local_defaults"] == engine.LOCAL_DEFAULT_PARAMS
+    photo = import_one(client)
+    endpoint = f"/api/photos/{photo['id']}/preview"
+    edited = client.post(endpoint, json={"params": {"exposure": .4}, "local_adjustment": local_edit()}).json()["photo"]
+    expected = preview_pixels(client, edited)
+    saved = app.state.store.photo(photo["id"])
+    saved.pop("preview_contract")  # Simulate a workspace created before the canonical-preview contract.
+    app.state.store.persist()
+    app.state.store.queue.put(None)
+    app.state.store.worker.join(5)
+    restarted = create_app(app.state.store.data)
+    with TestClient(restarted, base_url="http://127.0.0.1:18765") as again:
+        again.headers["X-PortraitLab-Token"] = again.get("/api/bootstrap").json()["token"]
+        migrated = again.get("/api/photos").json()["photos"][0]
+        assert migrated["status"] == "settings_changed"
+        assert migrated["preview_needs_refresh"]
+        assert migrated["params"] == edited["params"]
+        assert migrated["local_adjustment"] == edited["local_adjustment"]
+        refreshed = again.post(endpoint, json={}).json()["photo"]
+        assert not refreshed["preview_needs_refresh"]
+        assert refreshed["preview_contract"] == server.PREVIEW_CONTRACT
+        np.testing.assert_array_equal(preview_pixels(again, refreshed), expected)
+
+
+def test_local_mask_uses_local_region_protection_and_cleans_old_files(api, monkeypatch):
+    client, app = api
+    store = app.state.store
+    photo = import_one(client)
+    endpoint = f"/api/photos/{photo['id']}/preview"
+    analyze = store.engine.analyze
+    def separate_regions(rgb):
+        analysis = analyze(rgb)
+        analysis["face_count"] = 1
+        analysis["face_mask"][20:] = 0
+        return analysis
+    monkeypatch.setattr(store.engine, "analyze", separate_regions)
+    stroke = {"mode": "protect", "radius": .04, "points": [[.5, .5]]}
+    local = local_edit()
+    local["params"]["region"] = "skin"
+    response = client.post(endpoint, json={"local_adjustment": local, "strokes": [stroke]})
+    assert response.status_code == 200, response.text
+    edited = response.json()["photo"]
+    result = client.get(edited["local_mask_url"])
+    assert result.headers["content-type"].startswith("image/png")
+    local_mask = np.asarray(Image.open(io.BytesIO(result.content)))
+    global_mask = np.asarray(Image.open(io.BytesIO(client.get(edited["mask_url"]).content)))
+    assert global_mask[25, 20] == 0 and local_mask[25, 20] == 255
+    assert local_mask[20, 32] == 0  # The same global protection stroke applies locally.
+    assert not local_mask[:10].any() and not local_mask[30:].any()
+    assert not local_mask[:, :16].any() and not local_mask[:, 48:].any()
+    old_path = Path(store.photo(photo["id"])["local_mask_path"])
+    assert old_path.exists()
+    local["rect"]["x"] = .1
+    moved = client.post(endpoint, json={"local_adjustment": local}).json()["photo"]
+    assert not old_path.exists()
+    current_path = Path(store.photo(photo["id"])["local_mask_path"])
+    assert current_path.exists() and moved["local_mask_url"] != edited["local_mask_url"]
+    cleared = client.post(endpoint, json={"local_adjustment": None}).json()["photo"]
+    assert cleared["local_mask_url"] is None
+    assert store.photo(photo["id"])["local_mask_path"] is None
+    assert not current_path.exists()
+    assert client.get(f"/api/photos/{photo['id']}/image?kind=local_mask").status_code == 404
+    assert client.get(cleared["mask_url"]).status_code == 200
+
+
+def test_local_mask_projects_source_feather_without_expanding_outside(api):
+    _, app = api
+    store = app.state.store
+    analysis = {"face_count": 1, "face_mask": np.ones((200, 200), np.float32)}
+    snapshot = {"width": 4000, "height": 4000, "strokes": [],
+                "local_adjustment": engine.validate_local_adjustment(local_edit())}
+    mask = store.local_preview_mask(snapshot, analysis, (200, 200))
+    # First included preview centre lies 10 source pixels into the 32-pixel feather.
+    t = 10 / 32
+    assert mask[90, 50] == pytest.approx(t * t * (3 - 2 * t))
+    assert mask[90, 52] == 1
+    assert not mask[:50].any() and not mask[150:].any()
+    assert not mask[:, :50].any() and not mask[:, 150:].any()
+    assert store.local_preview_mask({**snapshot, "local_adjustment": None}, analysis, (200, 200)) is None
+    empty = store.local_preview_mask(snapshot, {**analysis, "face_count": 0}, (200, 200))
+    assert not empty.any()

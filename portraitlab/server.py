@@ -39,7 +39,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 
 from . import __version__
-from .presets import BUILTIN_IDS, CATEGORIES, MAX_CUSTOM_PRESETS, builtin_presets, custom_payload, custom_record
+from .presets import BUILTIN_IDS, CATEGORIES, PORTRAIT_GROUPS, MAX_CUSTOM_PRESETS, builtin_presets, custom_payload, custom_record
 from .gpu_service import GPUCompositor, validate_device
 
 APP_ROOT = Path(__file__).resolve().parents[1]
@@ -49,6 +49,7 @@ MAX_PRESET_REQUEST_BYTES = 64 * 1024
 MAX_PIXELS = 80_000_000
 MAX_FILES = 50
 PREVIEW_SIDE = 1600
+PREVIEW_CONTRACT = "canonical-full-resolution-area-png-v1"
 COOKIE = "portraitlab_session"
 SOURCE_FORMATS = {"JPEG", "PNG", "TIFF", "WEBP"}
 SOURCE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".tif", ".tiff", ".webp"}
@@ -287,6 +288,16 @@ class PortraitStore:
         except (ValueError, TypeError, KeyError) as exc:
             raise RuntimeError("无法读取已保存的预设；为保护原数据，服务未覆盖工作区。") from exc
         validate_device(self.state["processing_device"])
+        try:
+            for photo in self.state["photos"].values():
+                photo["local_adjustment"] = self.engine_module.validate_local_adjustment(photo.get("local_adjustment"))
+                if photo.get("preview_path") and photo.get("preview_contract") != PREVIEW_CONTRACT:
+                    # The next selection refreshes legacy JPEG/scale-dependent
+                    # previews before the user starts another retouching edit.
+                    if photo.get("status") == "ready":
+                        photo["status"] = "settings_changed"
+        except (ValueError, TypeError) as exc:
+            raise RuntimeError("无法读取已保存的局部调整；为保护原数据，服务未覆盖工作区。") from exc
         for job in self.state["jobs"].values():
             if job["status"] in ("queued", "running", "cancelling"):
                 job.update(status="interrupted", error="上次进程已退出，请重新提交未完成照片。", updated_at=now())
@@ -403,9 +414,11 @@ class PortraitStore:
 
     def public_photo(self, photo: dict) -> dict:
         from .lighting import validate_lighting
-        out = {k: photo.get(k) for k in ("id", "name", "width", "height", "face_count", "status", "params", "warnings", "version", "strokes", "generation")}
+        out = {k: photo.get(k) for k in ("id", "name", "width", "height", "face_count", "status", "params", "warnings", "version", "strokes", "generation", "local_adjustment")}
         out["lighting"] = validate_lighting(photo.get("lighting"))
         out["lighting_geometry"] = photo.get("lighting_geometry")
+        out["preview_contract"] = photo.get("preview_contract")
+        out["preview_needs_refresh"] = bool(photo.get("preview_path") and photo.get("preview_contract") != PREVIEW_CONTRACT)
         prefix = f"/api/photos/{photo['id']}/image"
         out["original_url"] = prefix + "?kind=original"
         if photo.get("generation_input_preview_path"):
@@ -413,6 +426,7 @@ class PortraitStore:
             out["comparison_kind"] = "generation_input"
         out["preview_url"] = prefix + (f"?kind=preview&v={photo.get('preview_version', 0)}" if photo.get("preview_path") else "?kind=original")
         out["mask_url"] = prefix + f"?kind=mask&v={photo.get('preview_version', 0)}" if photo.get("mask_path") else None
+        out["local_mask_url"] = prefix + f"?kind=local_mask&v={photo.get('preview_version', 0)}" if photo.get("local_adjustment") and photo.get("local_mask_path") else None
         return json_value(out)
 
     def public_job(self, job: dict) -> dict:
@@ -421,7 +435,8 @@ class PortraitStore:
     def preset_catalog(self) -> dict:
         with self.lock:
             return json_value({"presets": builtin_presets() + list(self.state["presets"].values()),
-                               "categories": list(CATEGORIES), "favorites": list(self.state["preset_favorites"])})
+                               "categories": list(CATEGORIES), "portrait_groups": list(PORTRAIT_GROUPS),
+                               "favorites": list(self.state["preset_favorites"])})
 
     def save_preset(self, data: dict) -> dict:
         cleaned = custom_payload(data)
@@ -485,7 +500,7 @@ class PortraitStore:
         write_image(original_preview, thumb, "JPEG", replace=False)
         os.chmod(raw_path, stat.S_IREAD)
         photo = {"id": photo_id, "name": name, "width": image.width, "height": image.height,
-                 "face_count": None, "status": "imported", "params": dict(self.defaults), "strokes": [],
+                 "face_count": None, "status": "imported", "params": dict(self.defaults), "strokes": [], "local_adjustment": None,
                  "warnings": color["warnings"], "source_warnings": color["warnings"], "color": color,
                  "original_path": str(raw_path), "source_path": str(normalized), "original_preview_path": str(original_preview),
                  "sha256": sha, "version": 0, "created_at": now()}
@@ -622,6 +637,29 @@ class PortraitStore:
                 raise
             return [self.public_photo(photo) for photo in photos]
 
+    def local_preview_mask(self, snapshot: dict, analysis: dict, shape: tuple[int, int]) -> np.ndarray | None:
+        """Display the local skin region without allocating a full-size mask.
+
+        Match engine.apply_local_adjustment's inward smoothstep and its
+        source-pixel feather length, projected onto the saved preview grid.
+        The mask indicates eligible skin, independently of slider intensity.
+        """
+        local = snapshot.get("local_adjustment")
+        if local is None:
+            return None
+        mask = self.engine_module.mask_for(analysis, shape, snapshot.get("strokes", []), region=local["params"]["region"])
+        h, w = shape
+        source_h, source_w = snapshot["height"], snapshot["width"]
+        rect = local["rect"]
+        yy, xx = np.ogrid[:h, :w]
+        xx, yy = (xx + .5) * (source_w / w), (yy + .5) * (source_h / h)
+        left, top = rect["x"] * source_w, rect["y"] * source_h
+        right, bottom = (rect["x"] + rect["width"]) * source_w, (rect["y"] + rect["height"]) * source_h
+        distance = np.minimum(np.minimum(xx - left, right - xx), np.minimum(yy - top, bottom - yy))
+        weight = np.clip(distance / min(32.0, .01 * min(source_h, source_w)), 0, 1).astype(np.float32)
+        mask *= weight * weight * (3 - 2 * weight)
+        return mask
+
     def render_preview(self, photo_id: str, requested_version: int) -> dict:
         with self.lock:
             per_photo = self.photo_locks.setdefault(photo_id, threading.Lock())
@@ -635,37 +673,41 @@ class PortraitStore:
                 full = self.rgb(snapshot)
                 analysis = self.analysis(snapshot, full)
                 has_lighting = bool(snapshot.get("lighting_geometry") or (snapshot.get("lighting") or {}).get("enabled"))
+                base, meta = self.lighting.retouch_base(snapshot, full, analysis)
                 if has_lighting:
-                    base, meta = self.lighting.retouch_base(snapshot, full, analysis)
                     width, height = self.lighting.preview_size(snapshot)
-                    output = self.lighting.resize_base(base, width, height)
-                    del base
                 else:
-                    preview = resize_rgb(full, PREVIEW_SIDE)
-                    with self.engine_lock:
-                        output, meta = self.engine.render(preview, snapshot["params"], analysis, strokes=snapshot["strokes"])
-                del full
+                    scale = min(1.0, PREVIEW_SIDE / max(base.shape[:2]))
+                    width, height = max(1, round(base.shape[1] * scale)), max(1, round(base.shape[0] * scale))
+                output = self.lighting.resize_base(base, width, height)
+                del base, full
                 mask = self.engine_module.mask_for(analysis, output.shape[:2], snapshot["strokes"], region=snapshot["params"].get("region", "face"))
+                local_mask = self.local_preview_mask(snapshot, analysis, output.shape[:2])
                 output, lighting_meta = self.lighting.render(snapshot, output)
                 meta["lighting"] = lighting_meta
-                preview_format, preview_extension = ("PNG", "png") if has_lighting else ("JPEG", "jpg")
+                preview_format, preview_extension = "PNG", "png"
                 preview_path = writable_path(self.folders["previews"] / f"{photo_id}.{requested_version}.{preview_extension}")
                 mask_path = writable_path(self.folders["previews"] / f"{photo_id}.{requested_version}.mask.png")
+                local_mask_path = writable_path(self.folders["previews"] / f"{photo_id}.{requested_version}.local-mask.png") if local_mask is not None else None
                 with self.lock:
                     current = self.photo(photo_id)
                     if current["version"] != requested_version:
                         return {"photo": self.public_photo(current), "meta": {"stale": True}}
                     write_image(preview_path, np.asarray(output, dtype=np.uint8), preview_format)
                     write_image(mask_path, Image.fromarray(np.rint(np.clip(mask, 0, 1) * 255).astype(np.uint8)), "PNG")
-                    old_paths = [current.get("preview_path"), current.get("mask_path")]
+                    if local_mask_path is not None:
+                        write_image(local_mask_path, Image.fromarray(np.rint(np.clip(local_mask, 0, 1) * 255).astype(np.uint8)), "PNG")
+                    old_paths = [current.get("preview_path"), current.get("mask_path"), current.get("local_mask_path")]
                     warnings = list(dict.fromkeys(snapshot.get("source_warnings", []) + list(analysis.get("warnings", [])) + list(meta.get("warnings", []))))
                     current.update(preview_path=str(preview_path), mask_path=str(mask_path), preview_version=requested_version,
+                                   local_mask_path=str(local_mask_path) if local_mask_path is not None else None,
+                                   preview_contract=PREVIEW_CONTRACT,
                                    status="ready", face_count=int(analysis.get("face_count", 0)), warnings=warnings,
                                    last_meta=json_value(meta))
                     self.persist()
                     result = {"photo": self.public_photo(current), "meta": json_value(meta)}
                 for old in old_paths:
-                    if old and old not in (str(preview_path), str(mask_path)):
+                    if old and old not in (str(preview_path), str(mask_path), str(local_mask_path)):
                         try:
                             path = writable_path(old)
                             if path.parent == self.folders["previews"]:
@@ -734,18 +776,13 @@ class PortraitStore:
             try:
                 rgb = self.rgb(snapshot)
                 analysis = self.analysis(snapshot, rgb)
-                if snapshot.get("lighting_geometry") or (snapshot.get("lighting") or {}).get("enabled"):
-                    base, meta = self.lighting.retouch_base(snapshot, rgb, analysis)
-                    if job["max_side"] and max(base.shape[:2]) > job["max_side"]:
-                        scale = job["max_side"]/max(base.shape[:2])
-                        output = self.lighting.resize_base(base, max(1, round(base.shape[1]*scale)), max(1, round(base.shape[0]*scale)))
-                    else:
-                        output = base
-                    del base
+                base, meta = self.lighting.retouch_base(snapshot, rgb, analysis)
+                if job["max_side"] and max(base.shape[:2]) > job["max_side"]:
+                    scale = job["max_side"]/max(base.shape[:2])
+                    output = self.lighting.resize_base(base, max(1, round(base.shape[1]*scale)), max(1, round(base.shape[0]*scale)))
                 else:
-                    rgb = resize_rgb(rgb, job["max_side"])
-                    with self.engine_lock:
-                        output, meta = self.engine.render(rgb, snapshot["params"], analysis, strokes=snapshot.get("strokes", []))
+                    output = base
+                del base
                 output, lighting_meta = self.lighting.render(snapshot, output)
                 meta["lighting"] = lighting_meta
                 directory = writable_path(job["output_dir"])
@@ -770,6 +807,7 @@ class PortraitStore:
                             "output_dimensions": [output.shape[1], output.shape[0]], "output_precision": "8-bit RGB",
                             "output_color_space": "sRGB", "source_color": snapshot.get("color"),
                             "params": snapshot["params"], "strokes": snapshot.get("strokes", []),
+                            "local_adjustment": snapshot.get("local_adjustment"),
                             "lighting": snapshot.get("lighting"), "lighting_geometry": snapshot.get("lighting_geometry"),
                             "processing_device": meta.get("processing_device"),
                             "models": analysis.get("models"), "engine_meta": meta,
@@ -911,7 +949,11 @@ def create_app(data_dir: Path | None = None, port: int = 18765) -> FastAPI:
         status = preparation["models"]
         catalog = store.preset_catalog()
         response = JSONResponse(json_value({"version": __version__, "token": token, "defaults": store.defaults,
+                                           "local_defaults": store.engine_module.LOCAL_DEFAULT_PARAMS,
+                                           "capabilities": {"local_adjustments": True, "canonical_preview": True,
+                                                            "canonical_preview_contract": PREVIEW_CONTRACT},
                                            "presets": catalog["presets"], "preset_categories": catalog["categories"],
+                                           "preset_portrait_groups": catalog["portrait_groups"],
                                            "preset_favorites": catalog["favorites"], "models": status,
                                            "storage": {"data_dir": str(store.data), "export_dir": str(store.folders["exports"]),
                                                        "max_files": MAX_FILES, "max_file_mib": 100, "max_pixels": MAX_PIXELS},
@@ -1005,11 +1047,11 @@ def create_app(data_dir: Path | None = None, port: int = 18765) -> FastAPI:
 
     @app.get("/api/photos/{photo_id}/image")
     async def photo_image(photo_id: str, kind: str = "preview"):
-        if kind not in ("original", "preview", "mask", "input"):
+        if kind not in ("original", "preview", "mask", "local_mask", "input"):
             raise ValueError("未知图像类型。")
         with store.lock:
             photo = store.photo(photo_id)
-            key = {"original": "original_preview_path", "preview": "preview_path", "mask": "mask_path", "input": "generation_input_preview_path"}[kind]
+            key = {"original": "original_preview_path", "preview": "preview_path", "mask": "mask_path", "local_mask": "local_mask_path", "input": "generation_input_preview_path"}[kind]
             value = photo.get(key)
             if not value:
                 raise HTTPException(404, "此预览尚未生成。")
@@ -1025,6 +1067,7 @@ def create_app(data_dir: Path | None = None, port: int = 18765) -> FastAPI:
             photo = store.photo(photo_id)
             params = store.params(data.get("params", photo["params"]))
             strokes = validate_strokes(data["strokes"]) if "strokes" in data else photo["strokes"]
+            local_adjustment = store.engine_module.validate_local_adjustment(data.get("local_adjustment", photo.get("local_adjustment")))
             raw_lighting = data.get("lighting", photo.get("lighting"))
             if "lighting_geometry" in data:
                 lighting, geometry = store.lighting.validate_edit(photo, raw_lighting, data["lighting_geometry"])
@@ -1033,6 +1076,7 @@ def create_app(data_dir: Path | None = None, port: int = 18765) -> FastAPI:
             # Validate the entire edit before persisting either part of it.
             previous = dict(photo)
             photo.update(params=params, strokes=strokes, lighting=lighting, lighting_geometry=geometry,
+                         local_adjustment=local_adjustment,
                          version=photo["version"] + 1, status="settings_changed")
             version = photo["version"]
             try:

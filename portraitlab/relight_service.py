@@ -284,7 +284,9 @@ class RelightController:
                 if background is None:
                     raise ValueError("未获得人物前景选区，请使用可识别人脸的人像照片。")
                 with self.store.engine_lock:
-                    processed, _ = self.store.engine.render(rgb, snapshot["params"], analysis, strokes=snapshot.get("strokes", []))
+                    processed, _ = self.store.engine_module.render_adjustments(
+                        self.store.engine, rgb, snapshot["params"], analysis,
+                        strokes=snapshot.get("strokes", []), local_adjustment=snapshot.get("local_adjustment"))
                 input_path = self.checked(directory / "input.png")
                 mask_path = self.checked(directory / "foreground.png")
                 self.save_image(input_path, processed, "PNG")
@@ -311,7 +313,8 @@ class RelightController:
                 provenance = {"kind": "generative_relight", "source_id": snapshot["id"],
                               "source_name": snapshot["name"], "source_sha256": snapshot["sha256"],
                               "source_dimensions": [snapshot["width"], snapshot["height"]],
-                              "input_edits": {"params": snapshot["params"], "strokes": snapshot.get("strokes", [])},
+                              "input_edits": {"params": snapshot["params"], "strokes": snapshot.get("strokes", []),
+                                              "local_adjustment": snapshot.get("local_adjustment")},
                               "request": options, "metadata": result.get("metadata", {}),
                               "generated_dimensions": [result.get("width"), result.get("height")], "created_at": self.now()}
                 generated = self.store.add_generated(output_path, snapshot["name"], provenance, input_path)

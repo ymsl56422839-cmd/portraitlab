@@ -13,6 +13,12 @@ from .engine import DEFAULT_PARAMS, validate_params
 MAX_CUSTOM_PRESETS = 100
 MAX_PRESET_NAME = 40
 MAX_PRESET_DESCRIPTION = 180
+PORTRAIT_GROUPS = (
+    {"id": "general", "name": "通用", "description": "按照片需要选择修肤、曝光与色调，可先框选再局部应用。"},
+    {"id": "senior", "name": "长者人像", "description": "以光线和色彩整理为主，默认保留皱纹与皮肤质感。"},
+    {"id": "adult", "name": "成人人像", "description": "日常、职场、妆面与痘点修复，按需要微调强度。"},
+    {"id": "youth", "name": "少年人像", "description": "轻调光色，默认不磨皮；需要时单独修复痘点。"},
+)
 CATEGORIES = (
     {"id": "retouch", "name": "修肤与质感"},
     {"id": "light", "name": "曝光与补脸"},
@@ -22,14 +28,15 @@ CATEGORIES = (
     {"id": "mine", "name": "我的预设"},
 )
 NEUTRAL = {
-    **DEFAULT_PARAMS, "smooth": 0.0, "blemishes": 0.0, "even": 0.0,
+    **DEFAULT_PARAMS, "smooth": 0.0, "blemishes": 0.0, "even": 0.0, "acne": 0.0,
     "texture": 0.0, "exposure": 0.0, "relight": 0.0, "warmth": 0.0,
     "saturation": 1.0, "opacity": 1.0,
 }
 
 
-def _recipe(identifier, name, category, description, tags, *, featured=False, **params):
+def _recipe(identifier, name, category, description, tags, *, featured=False, portrait_group="general", **params):
     return {"id": identifier, "name": name, "category": category,
+            "portrait_group": portrait_group,
             "description": description, "tags": tags, "featured": featured,
             "builtin": True, "params": validate_params({**NEUTRAL, **params})}
 
@@ -77,8 +84,68 @@ BUILTIN_PRESETS = (
             smooth=.22, blemishes=.18, even=.18, texture=.08, region="skin", opacity=.75),
     _recipe("body_even", "裸露皮肤均匀", "body", "重点均匀面部与身体皮肤色彩，不改变衣服或背景的色调。", ["身体", "肤色", "均匀"],
             smooth=.12, blemishes=.12, even=.42, texture=.04, region="skin", opacity=.80),
-    _recipe("original", "原图", "basic", "关闭当前照片的全部调整，保留保护笔刷记录。", ["原图", "重置", "对比"],
+    _recipe("original", "原图", "basic", "关闭当前编辑范围的调整，保留另一范围与保护笔刷记录。", ["原图", "重置", "对比"],
             opacity=0.0),
+    _recipe("acne_gentle", "去痘·轻度", "retouch", "轻修识别到的独立面部痘点；可先框选，保护痣和雀斑。", ["去痘", "痘点", "局部", "轻修"],
+            featured=True, acne=.20),
+    _recipe("acne_standard", "去痘·标准", "retouch", "适度修复识别到的独立痘点，不增加磨皮；建议放大检查。", ["去痘", "痘点", "局部"],
+            featured=True, acne=.50),
+    _recipe("acne_strong", "去痘·加强", "retouch", "加强已识别痘点的修复强度，不增加检测范围；可框选限制处理。", ["去痘", "痘点", "局部", "加强"],
+            acne=.80),
+    _recipe("local_even_skin", "局部肤色整理", "retouch", "建议先框选色差区域再应用；未框选时整理自动面部皮肤选区。", ["局部", "肤色", "色差", "框选"],
+            even=.28, opacity=.90),
+    _recipe("senior_true", "长者真实肤质", "retouch", "仅轻整肤色，不柔化皱纹、毛孔或自动修复斑点。", ["长者", "真实", "肤色"],
+            portrait_group="senior", featured=True, even=.08, opacity=.75),
+    _recipe("senior_soft_fill", "长者柔和补脸", "light", "轻补面部曝光并少量均匀肤色，保留年龄特征。", ["长者", "补脸", "保纹"],
+            portrait_group="senior", featured=True, even=.08, relight=.24, opacity=.80),
+    _recipe("senior_backlit", "长者逆光肖像", "light", "补亮偏暗面部并略提全图曝光，保留原有皮肤纹理。", ["长者", "逆光", "曝光"],
+            portrait_group="senior", even=.06, exposure=.10, relight=.48, opacity=.80),
+    _recipe("senior_light_balance", "长者亮脸平衡", "light", "轻压过亮面部与全图曝光；不能恢复已丢失的高光。", ["长者", "亮脸", "减亮"],
+            portrait_group="senior", exposure=-.08, relight=-.18, opacity=.85),
+    _recipe("senior_warm_family", "长者暖调合影", "color", "温和全图暖调与少量肤色整理，不磨平皮肤起伏。", ["长者", "合影", "暖色", "全图"],
+            portrait_group="senior", even=.06, warmth=.20, saturation=.96, opacity=.75),
+    _recipe("senior_cold_cast", "长者偏冷回暖", "color", "手动为偏冷照片增加全图暖色并略提曝光，保留肤质。", ["长者", "偏冷", "回暖", "全图"],
+            portrait_group="senior", exposure=.06, warmth=.18, opacity=.80),
+    _recipe("senior_soft_color", "长者柔和色彩", "color", "降低全图饱和度、轻提曝光，适合柔和纪实氛围。", ["长者", "柔色", "纪实", "全图"],
+            portrait_group="senior", exposure=.04, warmth=.04, saturation=.82, opacity=.90),
+    _recipe("senior_monochrome", "长者纪实黑白", "color", "全图沉静黑白与极轻肤色整理，保留皱纹和斑点。", ["长者", "黑白", "纪实", "全图"],
+            portrait_group="senior", even=.05, exposure=-.12, saturation=0.0),
+    _recipe("adult_document", "成人证件自然", "retouch", "轻修肤色和瑕疵、温和补脸；不改变五官或背景颜色。", ["成人", "证件", "自然"],
+            portrait_group="adult", featured=True, smooth=.10, blemishes=.12, even=.16, relight=.12, opacity=.85),
+    _recipe("adult_office", "成人职场肖像", "retouch", "适度均匀肤色与轻柔肤质，全图略降饱和并偏冷。", ["成人", "职场", "肤色", "全图"],
+            portrait_group="adult", featured=True, smooth=.16, blemishes=.18, even=.24, warmth=-.06, saturation=.96, opacity=.80),
+    _recipe("adult_lowlight", "成人室内暗光", "light", "增加全图曝光与面部补光、轻修肤色；请检查暗部噪点。", ["成人", "室内", "暗光", "曝光"],
+            portrait_group="adult", smooth=.08, blemishes=.10, even=.10, exposure=.30, relight=.18, saturation=.94, opacity=.80),
+    _recipe("adult_outdoor", "成人户外亮脸", "light", "轻压偏亮面部、整理肤色，全图略降暖色。", ["成人", "户外", "亮脸"],
+            portrait_group="adult", smooth=.12, blemishes=.08, even=.20, relight=-.10, warmth=-.10, opacity=.75),
+    _recipe("adult_makeup_detail", "成人妆面保细节", "retouch", "极轻肤质和肤色整理，不增加妆容；可用保护笔刷保留妆面。", ["成人", "妆面", "细节"],
+            portrait_group="adult", smooth=.06, blemishes=.06, even=.08, texture=.02, opacity=.75),
+    _recipe("adult_acne_light", "成人轻度去痘", "retouch", "轻修识别到的独立面部痘点，建议先框选需处理位置。", ["成人", "去痘", "痘点", "局部"],
+            portrait_group="adult", acne=.30),
+    _recipe("adult_acne_medium", "成人加强去痘", "retouch", "加强已识别痘点的修复，不叠加磨皮；放大检查痣和雀斑。", ["成人", "去痘", "痘点", "加强"],
+            portrait_group="adult", acne=.60),
+    _recipe("adult_acne_even", "成人去痘匀肤", "retouch", "修复独立痘点并轻整肤色，可框选限制作用位置。", ["成人", "去痘", "肤色", "局部"],
+            portrait_group="adult", acne=.45, even=.16, opacity=.90),
+    _recipe("adult_monochrome", "成人沉静黑白", "color", "全图黑白、略压曝光并轻修肤质，适合克制的肖像氛围。", ["成人", "黑白", "全图"],
+            portrait_group="adult", smooth=.06, even=.08, exposure=-.06, saturation=0.0),
+    _recipe("adult_body_even", "成人全身轻匀肤", "body", "轻整面部、颈部和裸露皮肤色差；请检查自动皮肤选区。", ["成人", "全身", "肤色"],
+            portrait_group="adult", smooth=.08, blemishes=.06, even=.28, region="skin", opacity=.80),
+    _recipe("youth_true", "少年真实肤质", "retouch", "只做极轻肤色整理，默认不磨皮、不修复斑点。", ["少年", "真实", "保纹"],
+            portrait_group="youth", featured=True, even=.04, opacity=.80),
+    _recipe("youth_school", "少年校园肖像", "light", "轻补面部、少量均匀肤色，全图略增色彩。", ["少年", "校园", "补脸"],
+            portrait_group="youth", featured=True, even=.08, relight=.16, saturation=1.02, opacity=.85),
+    _recipe("youth_outdoor", "少年户外清爽", "light", "轻补面部并略提全图曝光，全图少量偏冷。", ["少年", "户外", "清爽"],
+            portrait_group="youth", exposure=.08, relight=.22, warmth=-.06, opacity=.80),
+    _recipe("youth_backlight", "少年逆光补脸", "light", "补亮逆光面部并极轻整理肤色，保留真实皮肤纹理。", ["少年", "逆光", "补脸"],
+            portrait_group="youth", even=.04, relight=.44, opacity=.80),
+    _recipe("youth_warm", "少年暖调日常", "color", "全图温和暖色、略增饱和并轻补面部，不磨皮。", ["少年", "日常", "暖色", "全图"],
+            portrait_group="youth", relight=.08, warmth=.18, saturation=1.03, opacity=.80),
+    _recipe("youth_clean_color", "少年清淡色彩", "color", "轻整肤色，全图少量偏冷并降低饱和度。", ["少年", "清淡", "肤色", "全图"],
+            portrait_group="youth", even=.10, warmth=-.08, saturation=.97, opacity=.80),
+    _recipe("youth_acne_light", "少年轻度去痘", "retouch", "仅轻修识别到的独立痘点，保留毛孔；建议先框选。", ["少年", "去痘", "局部", "保纹"],
+            portrait_group="youth", acne=.25),
+    _recipe("youth_acne_even", "少年痘点轻匀肤", "retouch", "适度修复独立痘点并轻整肤色，不叠加磨皮。", ["少年", "去痘", "肤色", "局部"],
+            portrait_group="youth", acne=.40, even=.08, opacity=.90),
 )
 BUILTIN_IDS = frozenset(preset["id"] for preset in BUILTIN_PRESETS)
 

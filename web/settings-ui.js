@@ -15,13 +15,18 @@ function classicState(){
  updateHardwareFooter();
 }
 async function refreshClassicModels(){
- clearTimeout(classicModelTimer);const wasRunning=classicModelState?.status==='running';try{const result=await api('/api/models/status');state.boot.models=result.models;classicModelState=result.installation;modelInfo();classicState();window.PortraitLighting?.refreshControls?.();if(wasRunning&&classicModelState.status==='completed'){const retry=new Set(state.dirty);if(photo()?.status!=='ready'&&state.current)retry.add(state.current);for(const id of retry)queuePreview(id,0);}if(classicModelState.status==='running')classicModelTimer=setTimeout(refreshClassicModels,900);}catch(error){$('classicModelProgress').textContent=errorMessage(error);$('classicModelState').textContent='检查失败';$('classicModelState').dataset.state='failed';$('downloadClassicModels').disabled=false;$('downloadClassicModels').textContent='重试准备模型';}
+ clearTimeout(classicModelTimer);const wasRunning=classicModelState?.status==='running';try{const result=await api('/api/models/status');state.boot.models=result.models;classicModelState=result.installation;modelInfo();classicState();window.PortraitLighting?.refreshControls?.();if(wasRunning&&classicModelState.status==='completed'){const retry=new Set(state.dirty);if(photo()?.status!=='ready'&&state.current)retry.add(state.current);for(const id of retry)queuePreview(id,0);}if(classicModelState.status==='running')classicModelTimer=setTimeout(refreshClassicModels,900);}catch(error){$('classicModelProgress').textContent=errorMessage(error);$('classicModelState').textContent='检查失败';$('classicModelState').dataset.state='failed';$('downloadClassicModels').disabled=state.locked||!state.token;$('downloadClassicModels').textContent='重试准备模型';updateHardwareFooter();}
 }
 $('downloadClassicModels').onclick=async()=>{if(state.locked)return;$('downloadClassicModels').disabled=true;try{await post('/api/models/download',{});await refreshClassicModels();}catch(error){toast(errorMessage(error),true);$('downloadClassicModels').disabled=false;}};
 function updateHardwareFooter(){
  const hardware=state.hardware;const data=state.boot?.models;const last=state.lastProcessingDevice?.preference===hardware?.preference?state.lastProcessingDevice:null;const actual=last?.actual_device||hardware?.actual_device;
  const label=!hardware?'设置 · 检查设备':actual?`${hardware.preference==='auto'?'自动 · ':''}合成 ${actual==='cuda'?'GPU':'CPU'}`:hardware.preference==='cpu'?'CPU 已选':hardware.preference==='cuda'?'GPU 已选':hardware.classic_gpu_available?'自动 · GPU 可用':'自动 · CPU 可用';
- $('modelStatusText').textContent=label+(data?.ready?'':' · 需准备模型');$('modelStatusText').title=last?.warning||hardware?.stage_note||'查看处理设置';
+ const classic=$('classicModelState').dataset.state||'checking',lighting=$('settingsAIState').dataset.state||'checking';
+ const states=[classic,lighting];const kind=states.includes('failed')?'failed':states.includes('running')?'running':states.includes('missing')?'missing':states.includes('downloaded')?'downloaded':states.every(value=>value==='ready')?'ready':'checking';
+ const modelLabel=kind==='failed'?'准备失败 · 点击查看':kind==='running'?'模型准备中 · 点击查看':classic==='missing'?'基础模型待下载':classic==='downloaded'?'基础模型待校验':lighting==='missing'?($('settingsAIState').textContent.includes('组件')?'布光组件待准备':'布光模型待下载'):kind==='ready'?'模型已就绪':'正在检查模型';
+ $('modelsBtn').dataset.state=kind;$('modelsBtn').title='打开模型下载与处理设备：'+modelLabel;
+ $('modelStatusText').textContent=modelLabel+(kind==='ready'?' · '+label:'');$('modelStatusText').title=last?.warning||hardware?.stage_note||'点击查看模型下载与设备设置';
+ if($('classicModelCard'))$('classicModelCard').dataset.state=classic;if($('lightingModelCard'))$('lightingModelCard').dataset.state=lighting;
 }
 function renderHardware(){
  const hardware=state.hardware;if(!hardware)return;$('hardwareDevice').value=hardware.preference||'auto';$('hardwareDevice').querySelector('[value="cuda"]').disabled=!hardware.classic_gpu_available;$('hardwareDevice').disabled=hardwareBusy||state.locked;
@@ -34,3 +39,4 @@ document.addEventListener('portraitlab-model-state',classicState);document.addEv
 document.addEventListener('portraitlab-edit-state',()=>{classicState();window.PortraitLighting?.refreshControls?.();if(state.hardware)$('hardwareDevice').disabled=hardwareBusy||state.locked;});
 document.addEventListener('portraitlab-settings-open',()=>{refreshClassicModels();refreshHardware();window.PortraitLighting?.refreshStatus?.();});
 document.addEventListener('portraitlab-ready',()=>{classicState();refreshHardware();refreshClassicModels();});
+new MutationObserver(updateHardwareFooter).observe($('settingsAIState'),{attributes:true,attributeFilter:['data-state'],childList:true,characterData:true,subtree:true});

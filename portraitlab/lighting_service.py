@@ -179,6 +179,7 @@ class LightingController:
         """A lighting edit never invalidates its unlit, full-resolution base."""
         signature = {"contract": BASE_CONTRACT, "source": snapshot["sha256"],
                      "params": snapshot["params"], "strokes": snapshot.get("strokes", []),
+                     "local_adjustment": snapshot.get("local_adjustment"),
                      "analysis": self.store.analysis_signature,
                      "models": self.store.model_fingerprint(),
                      "device_preference": self.store.state.get("processing_device", "auto")}
@@ -212,8 +213,21 @@ class LightingController:
                 pass
             original = self.store.rgb(snapshot) if original is None else original
             analysis = self.store.analysis(snapshot, original) if analysis is None else analysis
-            base, meta = self.store.engine.render(original, snapshot["params"], analysis,
-                                                  strokes=snapshot.get("strokes", []))
+            local = self.store.engine_module.validate_local_adjustment(snapshot.get("local_adjustment"))
+            if local is not None:
+                # Moving/resizing the rectangle or changing its sliders reuses
+                # the expensive global skin pass, including after a restart.
+                global_snapshot = {**snapshot, "local_adjustment": None}
+                global_base, meta = self.retouch_base(global_snapshot, original, analysis)
+                base, local_meta = self.store.engine_module.apply_local_adjustment(
+                    self.store.engine, global_base, analysis, local, snapshot.get("strokes", []))
+                meta = {**meta, "local_adjustment": local_meta}
+                meta["warnings"] = list(dict.fromkeys(meta.get("warnings", []) + local_meta.get("engine_meta", {}).get("warnings", [])))
+                if local_meta.get("engine_meta", {}).get("processing_device"):
+                    meta["processing_device"] = local_meta["engine_meta"]["processing_device"]
+            else:
+                base, meta = self.store.engine_module.render_adjustments(
+                    self.store.engine, original, snapshot["params"], analysis, snapshot.get("strokes", []))
             directory.mkdir(parents=True, exist_ok=True)
             self.save_image(image_path, base, "PNG")
             self.save_json(meta_path, {"contract": BASE_CONTRACT, "key": key, "meta": meta})

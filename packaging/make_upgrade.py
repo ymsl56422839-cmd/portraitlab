@@ -1,4 +1,4 @@
-"""Build a model-free application update for an existing 0.2/0.3 portable folder.
+"""Build a model-free application update for an existing 0.2/0.3/0.4 portable folder.
 
 ZIP entries start at the application root; runtime, AI, Data and Cache are never
 included. The recipient closes PortraitLab before extracting into its folder.
@@ -74,19 +74,25 @@ def main():
     for component in webview['files']:
         if inventory.get(component['file']) != {'bytes': component['bytes'], 'sha256': component['sha256']}:
             raise ValueError('WebView2 files differ from their verified manifest: ' + component['file'])
-    upgrade = {'version': version, 'base_versions': ['0.2.0', '0.3.0'], 'platform': build['platform'],
+    upgrade = {'version': version, 'base_versions': ['0.2.0', '0.3.0', '0.4.0'], 'platform': build['platform'],
                'layout': 'application-root', 'preserved_directories': ['runtime', 'AI', 'Data', 'Cache'],
                'model_weights_included': False, 'files': inventory}
     readme = (
         f'照影 / PortraitLab {version} 小升级包\n\n'
-        '适用：已完整解压并可运行的 PortraitLab 0.2.0 或 0.3.0 Windows x64 软件目录。\n'
+        '适用：已完整解压并可运行的 PortraitLab 0.4.0 Windows x64 软件目录；0.2.0 / 0.3.0 也列入兼容运行时基线。\n'
+        '已有 0.4.0 完整包只需本补丁；新用户只需 0.4.0 完整包加本补丁，无需重新下载大运行时包。\n\n'
+        '本次更新：矩形局部调整；通用、长者人像、成人人像、少年人像四类 52 个预设；\n'
+        '独立去痘强度；更醒目的模型下载与设备入口；鼠标悬停图像视窗时按 V 轮换原图、滑动对比、处理结果。\n'
+        '去痘修复检测到的面部独立痘点，可能漏检或误判；可先框选，并用保护笔刷保留痣、雀斑与妆面。\n'
+        '分类由用户选择，不自动识别年龄；长者方案默认不磨皮。批量只同步全局参数，保留各张局部与笔刷。\n\n'
         '1. 先保存当前操作并关闭所有照影 / PortraitLab 窗口，确认处理与模型下载任务已停止。只再开一个窗口会复用旧后台。\n'
         '2. 建议先备份原软件目录中的 Data（照片、参数、设置及模型）。\n'
         '3. 将本 ZIP 的全部内容直接解压到原软件目录，与 PortraitLab.exe 放在同一级，选择覆盖程序文件。\n'
         '   ZIP 内没有额外的顶层文件夹，请勿解压成原目录下的新子目录。\n'
         '4. 双击 PortraitLab.exe，打开「照影」单窗口界面。\n\n'
         '本升级包仅更新 app、启动器、WebView2 SDK 组件、许可和说明；不包含也不覆盖 runtime、AI、Data 或 Cache。\n'
-        '原版 Python / AI 运行环境继续使用，已有照片、编辑参数和模型保留。首次安装请下载完整包。\n'
+        '原版 Python / AI 运行环境继续使用，已有照片、编辑参数、收藏和模型保留。补丁不包含新模型。\n'
+        '旧预览缓存会按新版处理重算；原尺寸处理后缩图与旧版缩图修片可能有细节差异，不承诺旧预览像素完全相同。\n'
         '桌面界面需要 Microsoft Edge WebView2 Evergreen Runtime。缺少时程序会提供微软官方链接；该浏览器组件不包含在升级包内，适用微软自己的许可条款。\n'
         'WebView2 SDK 原始许可与来源见 Licenses/WebView2；应用与模型的其他许可见 THIRD_PARTY_NOTICES.md。\n'
     )

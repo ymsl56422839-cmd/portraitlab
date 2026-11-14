@@ -31,6 +31,7 @@ ALGORITHM = {
     "commit": "d6f9a848fa5ba5628239b568777c5be3e7851a8e",
     "license": "AGPL-3.0-only",
     "relight": "face-local radial exposure in linear RGB; not generative relighting",
+    "acne": "fixed-sensitivity compact spot detection, frequency-separated tone inpainting, independent delta strength",
 }
 MODEL_SPECS = {
     "face_landmarker": {
@@ -55,7 +56,7 @@ MODEL_SPECS = {
     },
 }
 DEFAULT_PARAMS = {
-    "smooth": 0.25, "blemishes": 0.20, "even": 0.15, "texture": 0.10,
+    "smooth": 0.25, "blemishes": 0.20, "even": 0.15, "texture": 0.10, "acne": 0.0,
     "exposure": 0.0, "warmth": 0.0, "saturation": 1.0, "relight": 0.0,
     "opacity": 0.75, "region": "face", "engine": "classic",
 }
@@ -65,11 +66,16 @@ PRESETS = {
     "原图": {**DEFAULT_PARAMS, "smooth": 0.0, "blemishes": 0.0, "even": 0.0, "texture": 0.0, "opacity": 0.0},
 }
 _RANGES = {
-    "smooth": (0, 1), "blemishes": (0, 1), "even": (0, 1), "texture": (0, 1),
+    "smooth": (0, 1), "blemishes": (0, 1), "even": (0, 1), "texture": (0, 1), "acne": (0, 1),
     "exposure": (-2, 2), "warmth": (-1, 1), "saturation": (0, 2),
     "relight": (-1, 1), "opacity": (0, 1),
 }
+# Local adjustments are an additional pass over the global result. New numeric
+# beauty controls inherit zero here, rather than silently doubling global edits.
+LOCAL_DEFAULT_PARAMS = {**DEFAULT_PARAMS, **dict.fromkeys(_RANGES, 0.0),
+                        "saturation": 1.0, "opacity": 1.0}
 ANALYSIS_EDGE = 1600
+ACNE_DETECTION_SENSITIVITY = 0.5
 _LUMA = np.array([0.2126, 0.7152, 0.0722], np.float32)
 
 
@@ -126,6 +132,89 @@ def validate_strokes(strokes: list | None) -> list[dict]:
             raise ValueError("笔刷总采样点不能超过 50000")
         output.append({"mode": stroke["mode"], "radius": float(radius), "points": clean})
     return output
+
+
+def validate_local_adjustment(raw: dict | None) -> dict | None:
+    """One persistent rectangle; UI selection visibility is not an image edit."""
+    if raw is None:
+        return None
+    if not isinstance(raw, dict) or set(raw) != {"rect", "params"}:
+        raise ValueError("局部调整必须包含且仅包含 rect 和 params")
+    rect = raw["rect"]
+    if not isinstance(rect, dict) or set(rect) != {"x", "y", "width", "height"}:
+        raise ValueError("矩形必须包含且仅包含 x、y、width、height")
+    clean = {}
+    for key, value in rect.items():
+        if isinstance(value, (bool, np.bool_)) or not isinstance(value, Real) or not math.isfinite(float(value)):
+            raise ValueError("矩形坐标必须是有限数值")
+        clean[key] = float(value)
+    if (not 0 <= clean["x"] < 1 or not 0 <= clean["y"] < 1 or clean["width"] <= 0 or clean["height"] <= 0
+            or clean["x"] + clean["width"] > 1 + 1e-12
+            or clean["y"] + clean["height"] > 1 + 1e-12):
+        raise ValueError("矩形必须位于图像内，使用 0 到 1 的归一化坐标且宽高大于零")
+    # Clamp only machine rounding at the right/bottom edge, never real overflow.
+    clean["width"] = min(clean["width"], 1 - clean["x"])
+    clean["height"] = min(clean["height"], 1 - clean["y"])
+    if not isinstance(raw["params"], dict):
+        raise ValueError("局部 params 必须是参数对象")
+    params = validate_params({**LOCAL_DEFAULT_PARAMS, **raw["params"]})
+    return {"rect": clean, "params": params}
+
+
+def apply_local_adjustment(engine, base: np.ndarray, analysis: dict, adjustment: dict | None,
+                           strokes: list | None = None) -> tuple[np.ndarray, dict]:
+    """Apply a second pass only inside the rectangle, feathering strictly inward.
+
+    Global pixels are already rendered at source resolution. Processing the
+    whole base retains original landmark coordinates and filter context; only
+    selected pixel centres can enter the result. No re-encoding touches the
+    exterior, even when the local engine changes every input pixel.
+    """
+    local = validate_local_adjustment(adjustment)
+    if local is None:
+        return base, {"enabled": False}
+    h, w = base.shape[:2]
+    rect = local["rect"]
+    left, top = rect["x"] * w, rect["y"] * h
+    right, bottom = (rect["x"] + rect["width"]) * w, (rect["y"] + rect["height"]) * h
+    x0, y0 = max(0, math.ceil(left - .5)), max(0, math.ceil(top - .5))
+    x1, y1 = min(w, math.ceil(right - .5)), min(h, math.ceil(bottom - .5))
+    feather = min(32.0, .01 * min(h, w))
+    meta = {"enabled": True, **local, "feather_pixels": feather,
+            "outside_policy": "exact_global_pixels_outside_rectangle",
+            "composition": "additional_pass_on_global_result_with_inward_feather"}
+    if x1 <= x0 or y1 <= y0:
+        return base.copy(), meta
+    changed, local_meta = engine.render(base, local["params"], analysis, strokes=strokes)
+    output = base.copy()
+    yy, xx = np.ogrid[y0:y1, x0:x1]
+    distance = np.minimum(np.minimum(xx + .5 - left, right - xx - .5),
+                          np.minimum(yy + .5 - top, bottom - yy - .5))
+    weight = np.clip(distance / feather, 0, 1).astype(np.float32)
+    weight = (weight * weight * (3 - 2 * weight))[..., None]
+    source = base[y0:y1, x0:x1]
+    target = changed[y0:y1, x0:x1]
+    source_lin = srgb_to_linear(source.astype(np.float32) / 255)
+    target_lin = srgb_to_linear(target.astype(np.float32) / 255)
+    blended = np.rint(np.clip(linear_to_srgb(source_lin + weight * (target_lin - source_lin)), 0, 1) * 255).astype(np.uint8)
+    # Exact copy at both limits avoids introducing numerical drift.
+    output[y0:y1, x0:x1] = np.where(weight == 1, target, np.where(weight == 0, source, blended))
+    meta["engine_meta"] = local_meta
+    return output, meta
+
+
+def render_adjustments(engine, rgb: np.ndarray, params: dict, analysis: dict,
+                       strokes: list | None = None, local_adjustment: dict | None = None) -> tuple[np.ndarray, dict]:
+    """Shared global/local composition for exports and legacy generation input."""
+    local = validate_local_adjustment(local_adjustment)
+    base, meta = engine.render(rgb, params, analysis, strokes=strokes)
+    output, local_meta = apply_local_adjustment(engine, base, analysis, local, strokes)
+    meta = {**meta, "local_adjustment": local_meta}
+    meta["warnings"] = list(dict.fromkeys(meta.get("warnings", []) + local_meta.get("engine_meta", {}).get("warnings", [])))
+    local_device = local_meta.get("engine_meta", {}).get("processing_device")
+    if local_device is not None:
+        meta["processing_device"] = local_device
+    return output, meta
 
 
 def _rgb_input(rgb: np.ndarray) -> np.ndarray:
@@ -361,12 +450,27 @@ class Engine:
         effect_mask = mask_for(analysis, src.shape[:2], clean_strokes, p["region"])
         times["mask"] = (perf_counter() - step) * 1000
         changed = src
-        beauty_active = faces and p["opacity"] > 0 and any(p[k] > 0 for k in ("smooth", "blemishes", "even", "texture")) and bool(np.any(effect_mask > 0))
+        beauty_active = faces and p["opacity"] > 0 and any(p[k] > 0 for k in ("smooth", "blemishes", "even", "texture", "acne")) and bool(np.any(effect_mask > 0))
         parts = analysis.get("parts", {})
+        acne_found = False
         if beauty_active:
             step = perf_counter()
+            # Upstream's amount controls detection, not correction strength.
+            # Keep detection fixed, then mix only its repair delta. The
+            # canonical full-size render is also the source of previews.
+            if p["acne"] > 0:
+                spots = skin.acne_masks(src, faces, ACNE_DETECTION_SENSITIVITY,
+                                        head_hair=parts.get("hair"), ai_skin=parts.get("face_skin"))
+                acne_found = any(np.any(spot > 0) for _, spot in spots)
+                if acne_found:
+                    healed = skin.apply(src, faces, {"acne": ACNE_DETECTION_SENSITIVITY}, acne=spots,
+                                        head_hair=parts.get("hair"), ai_skin=parts.get("face_skin"))
+                    changed = src + p["acne"] * (healed - src)
+            times["acne"] = (perf_counter() - step) * 1000
+            step = perf_counter()
             region_params = {k: p[k] for k in ("smooth", "blemishes", "even", "texture")}
-            changed = skin.apply(src, faces, region_params, head_hair=parts.get("hair"), ai_skin=parts.get("face_skin"))
+            if any(region_params.values()):
+                changed = skin.apply(changed, faces, region_params, head_hair=parts.get("hair"), ai_skin=parts.get("face_skin"))
             times["face_skin"] = (perf_counter() - step) * 1000
             if p["region"] == "skin":
                 step = perf_counter()
@@ -413,9 +517,11 @@ class Engine:
             "timings_ms": times, "algorithm": dict(ALGORITHM), "models": analysis.get("models", self.status()["models"]),
             "analysis_shape": analysis.get("shape"), "output_shape": list(original.shape[:2]),
             "mask_coverage": float(np.mean(effect_mask > 0.1)), "stroke_count": len(clean_strokes),
+            "acne": {"strength": p["acne"], "detection_sensitivity": ACNE_DETECTION_SENSITIVITY,
+                     "spots_found": acne_found, "scope": "face_skin_with_protection_and_local_rectangle"},
             "color_processing": "Input/output encoded sRGB uint8 RGB; skin algorithms use Lab; exposure/white-balance gains/saturation/overall opacity use linear RGB.",
             "brush_scope": "Skin beauty and face-local radial exposure only; global exposure/color are not masked.",
             "relight_ev_range_before_opacity": [float((p["relight"] * field).min()), float((p["relight"] * field).max())] if field is not None else [0.0, 0.0],
-            "limitations": ["分割模型的原生分辨率为 256×256，细发与边界仍需检查。", "预览与原尺寸渲染按脸宽重新计算，效果可能略有差异。", "自动保护五官和须发不等于身份或纹理保真保证。"],
+            "limitations": ["分割模型的原生分辨率为 256×256，细发与边界仍需检查。", "直接按不同尺寸渲染时，细节效果可能略有差异；应用预览由原尺寸结果缩小。", "自动保护五官和须发不等于身份或纹理保真保证。", "去痘修复检测到的独立面部痘点，可能漏检连片痘痕或误判雀斑；可框选并用保护笔刷保留特征。"],
         }
         return output, metadata

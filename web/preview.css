@@ -34,6 +34,8 @@
 .preview-grid[data-layout="dual"] #secondaryPane { border-left: 1px solid #616a75; }
 .pane-toolbar { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 4px 6px; min-height: 42px; padding: 4px 8px; border-bottom: 1px solid #414852; background: #25292e; min-width: 0; }
 .pane-name { flex: none; color: #b8c2cc; font-size: 12px; white-space: nowrap; }
+.pane-name .view-cycle-hint { margin-left:5px; padding:1px 4px; border:1px solid #65717e; border-radius:3px; color:#aebbc8; background:#252d35; font:11px var(--font); }
+.preview-pane.is-hover-target .pane-name .view-cycle-hint { color:#e9f8ff; border-color:#b0cddd; background:#36505e; }
 .pane-toolbar .view-tabs { display: flex; align-items: center; gap: 3px; min-width: 0; }
 .pane-toolbar .view-tabs button { font-size: 12px; min-height: 32px; padding: 4px 8px; border: 1px solid transparent; border-radius: 4px; }
 .pane-toolbar .view-tabs button.active { background: #374d52; border-color: #a7d3d5; color: #edf8f8; }
