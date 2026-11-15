@@ -1,0 +1,24 @@
+{
+  "reviewed_on": "2026-11-15",
+  "distribution": "Unmodified runtime libraries accompanying PyTorch 2.7.1+cu128; no NVIDIA driver or developer toolkit installer included.",
+  "observed_cudnn_version": "9.7.1.26",
+  "cuda_toolkit_release": "12.8",
+  "files": [
+    {
+      "file": "CUDA-12.8-EULA.html",
+      "sha256": "b5c140d377119f25280c032d89d71a63105b46222d3a4c54da8728aa94c9e501"
+    },
+    {
+      "file": "CUDA-12.8-EULA.txt",
+      "sha256": "53aa2257fca560a91dc7939182ede6b30fab92e143b43792bcf58c99aac99506"
+    },
+    {
+      "file": "cuDNN-9.7-License.html",
+      "sha256": "83dc0c5e3dabf353ed1b2aa3573ce76ce48a623dc5f4d754fa08c2fc1fe3c6e2"
+    },
+    {
+      "file": "cuDNN-9.7-License.txt",
+      "sha256": "e0e85e2e7428c1c907fdedcb331bdbd386336d96b96557c85f8bc1cef806177e"
+    }
+  ]
+}

@@ -25,14 +25,19 @@ def test_builtin_recipes_are_distinct_complete_and_described(api):
     client, _ = api
     catalog = client.get('/api/presets').json()
     recipes = catalog['presets']
-    assert len(recipes) == 52
+    assert len(recipes) == 53
     assert len({p['id'] for p in recipes}) == len(recipes)
     assert len({p['name'] for p in recipes}) == len(recipes)
-    assert len({json.dumps(p['params'], sort_keys=True) for p in recipes}) == len(recipes)
+    signatures = {p['id']: json.dumps({key: p[key] for key in ('params', 'apply_keys', 'adaptive')}, sort_keys=True) for p in recipes}
+    canonical = [p for p in recipes if not p.get('alias_of')]
+    assert len({signatures[p['id']] for p in canonical}) == len(canonical)
+    for preset in recipes:
+        if preset.get('alias_of'):
+            assert signatures[preset['id']] == signatures[preset['alias_of']]
     categories = {group['id'] for group in catalog['categories']}
     assert catalog['portrait_groups'] == list(PORTRAIT_GROUPS)
     assert [group['name'] for group in catalog['portrait_groups']] == ['通用', '长者人像', '成人人像', '少年人像']
-    assert {group: sum(p['portrait_group'] == group for p in recipes) for group in ('general', 'senior', 'adult', 'youth')} == {'general': 26, 'senior': 8, 'adult': 10, 'youth': 8}
+    assert {group: sum(p['portrait_group'] == group for p in recipes) for group in ('general', 'senior', 'adult', 'youth')} == {'general': 27, 'senior': 8, 'adult': 10, 'youth': 8}
     for recipe in recipes:
         assert recipe['builtin'] is True
         assert recipe['category'] in categories
@@ -40,10 +45,11 @@ def test_builtin_recipes_are_distinct_complete_and_described(api):
         assert recipe['description'] and recipe['tags']
         assert set(recipe['params']) == set(DEFAULT_PARAMS)
         assert validate_params(recipe['params']) == recipe['params']
+        assert recipe['apply_groups'] and recipe['apply_keys'] and recipe['operations']
     # A reset does not leave latent beauty or color edits when strength changes.
     original = next(p for p in recipes if p['id'] == 'original')['params']
-    assert all(original[key] == 0 for key in ('smooth', 'blemishes', 'acne', 'even', 'texture', 'exposure', 'relight', 'warmth', 'opacity'))
-    assert original['saturation'] == 1
+    assert all(original[key] == 0 for key in ('smooth', 'blemishes', 'acne', 'even', 'texture', 'exposure', 'relight', 'warmth'))
+    assert original['saturation'] == original['opacity'] == 1
     returned = builtin_presets()
     returned[0]['params']['smooth'] = 1
     assert builtin_presets()[0]['params']['smooth'] == .25
@@ -91,13 +97,14 @@ def test_legacy_workspace_without_preset_fields_loads(api):
     loaded = reopen(app.state.store)
     try:
         assert loaded.preset_catalog()['favorites'] == []
-        assert len(loaded.preset_catalog()['presets']) == 52
+        assert len(loaded.preset_catalog()['presets']) == 53
     finally:
         close_store(loaded)
 
 
-def test_legacy_recipe_parameters_and_ids_remain_unchanged():
-    # 0.4.0 catalog: a new, neutral acne field must not silently change old looks.
+def test_legacy_ids_and_intended_group_controls_survive_pipeline_upgrade():
+    # Catalog identity survives; cross-section side effects are deliberately removed.
+    # Already-saved photo/custom parameters are independent of the built-in catalog.
     legacy = {
         'natural': dict(smooth=.25, blemishes=.20, even=.15, texture=.10, opacity=.75),
         'texture_first': dict(smooth=.08, blemishes=.10, even=.12, texture=0, opacity=.65),
@@ -119,12 +126,15 @@ def test_legacy_recipe_parameters_and_ids_remain_unchanged():
         'monochrome': dict(saturation=0.0, exposure=.08, opacity=1.0),
         'body_natural': dict(smooth=.22, blemishes=.18, even=.18, texture=.08, region='skin', opacity=.75),
         'body_even': dict(smooth=.12, blemishes=.12, even=.42, texture=.04, region='skin', opacity=.80),
-        'original': dict(opacity=0.0),
+        'original': dict(opacity=1.0),
     }
     catalog = {item['id']: item for item in builtin_presets()}
     assert len(legacy) == 22 and legacy.keys() <= BUILTIN_IDS
     for identifier, params in legacy.items():
-        assert catalog[identifier]['params'] == {**NEUTRAL, **params}
+        recipe = catalog[identifier]
+        expected = {**NEUTRAL, **{key: value for key, value in params.items() if key in recipe['apply_keys']},
+                    'opacity': params.get('opacity', 1)}
+        assert recipe['params'] == expected
         assert catalog[identifier]['portrait_group'] == 'general'
 
 

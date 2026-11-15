@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>照影 · 人像修图</title>
+  <link rel="stylesheet" href="/style.css">
+  <script defer src="/app.js"></script>
+  <script defer src="/workspace.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><strong>照影</strong><span>人像修图 · 开发版</span></div>
+    <div class="module-label" id="moduleName">修片</div>
+    <button id="modelsButton" class="models-entry"><strong>模型与计算设备</strong><span id="modelEntryState">正在检查…</span></button>
+    <button id="exportButton" class="primary" disabled>导出 PNG</button>
+  </header>
+  <main class="workspace">
+    <aside class="library" aria-label="照片库">
+      <div class="library-heading"><strong>照片库</strong><span id="photoCount">0</span></div>
+      <button id="importButton" class="import-button">＋ 导入照片</button>
+      <p class="library-note">也可将照片拖入画布</p>
+      <div class="library-selection"><label><input id="selectAllPhotos" type="checkbox">全选</label><span id="selectedPhotoCount">未多选</span></div>
+      <div id="photoList" class="photo-list"></div>
+      <div class="library-footer"><button id="removeSelectedPhotos" class="full-width" disabled>移除选中照片</button><p>仅从照片库移除<br>源文件保留</p></div>
+    </aside>
+    <section class="editor" aria-label="照片编辑画布">
+      <div class="canvas-toolbar">
+        <div class="layout-switch" role="group" aria-label="画布布局"><button data-layout="single" class="active" aria-pressed="true">单视图</button><button data-layout="dual" aria-pressed="false">双视图</button></div>
+        <div class="zoom-controls"><button id="zoomOut" aria-label="缩小">−</button><input id="zoomSlider" type="range" min="0" max="1000" value="500" aria-label="图片缩放"><button id="zoomIn" aria-label="放大">＋</button><output id="zoomValue">—</output><button id="zoomNative" disabled>100%</button><button id="zoomFit" disabled>适应窗口</button></div>
+      </div>
+      <div class="edit-toolbar">
+        <div class="tool-switch" role="group" aria-label="画布工具"><button id="browseTool" class="active" aria-pressed="true">浏览</button><button id="manualTool" aria-pressed="false">手动修补</button><button id="rectangleTool" aria-pressed="false" disabled>框选</button><button id="protectTool" aria-pressed="false" disabled>保护</button><button id="restoreMaskTool" aria-pressed="false" disabled>擦除保护</button><button id="pushTool" aria-pressed="false" disabled hidden>轮廓推拉</button></div>
+        <div class="restore-actions"><span id="restoreState">当前未应用修补</span><button id="restoreAll" class="restore-all" disabled>全部恢复原图</button></div>
+      </div>
+      <div id="scopeToolbar" class="scope-toolbar" hidden><span id="scopeSummary">框选仅作用于局部修片</span><label id="maskSizeField" hidden>笔刷直径<input id="maskDiameter" type="range" min="4" max="1000" value="80"><output id="maskDiameterValue">80 px</output></label><label><input id="showEditOverlays" type="checkbox" checked>显示编辑范围</label><button id="removeLocalLayer" disabled>移除局部调整</button><button id="clearProtection" disabled>清除保护</button></div>
+      <div id="manualToolbar" class="manual-toolbar" hidden>
+        <label class="brush-size">标记直径 <input id="brushDiameter" type="range" min="4" max="160" value="24" step="1" aria-label="标记直径，原图像素"><output id="brushSizeValue">24 px</output></label>
+        <div class="draft-actions"><button id="undoStroke" disabled>撤销上一笔</button><button id="clearDraft" disabled>清除标记</button><button id="applyManual" class="primary" disabled>修补标记区域</button></div>
+        <p id="draftMessage">在任一视图点击或涂抹；粉色标记是草稿。按住空格平移，Esc 清除。</p>
+        <p class="manual-scope">只修补涂抹范围；不受人物选择限制，请避开需要保留的细节。</p>
+      </div>
+      <div id="paneGrid" class="pane-grid">
+        <section class="image-pane" data-pane="primary">
+          <div class="pane-toolbar"><span>主视图 <kbd>V</kbd></span><div role="group" aria-label="主视图显示"><button data-pane-mode="primary:original" aria-pressed="false">原图</button><button data-pane-mode="primary:compare" aria-pressed="false">滑动对比</button><button data-pane-mode="primary:result" aria-pressed="true" class="active">处理结果</button></div></div>
+          <div id="primaryViewport" class="viewport" tabindex="0" aria-label="主视图，滚轮缩放，拖动平移"><canvas id="primaryCanvas"></canvas><div class="empty-state"><strong>从原片开始</strong><p>导入后可检查原尺寸细节，再分析并选择需要修补的位置。</p><button id="emptyImport">导入照片</button></div><div class="split-label before" hidden>原图</div><div class="split-label after" hidden>处理结果</div><button class="split-handle" hidden aria-label="拖动原图和处理结果分界" role="slider" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50"><span>↔</span></button><span class="pane-loading" hidden>加载细节…</span></div>
+        </section>
+        <section class="image-pane" data-pane="secondary" hidden>
+          <div class="pane-toolbar"><span>副视图 <kbd>V</kbd></span><div role="group" aria-label="副视图显示"><button data-pane-mode="secondary:original" aria-pressed="true" class="active">原图</button><button data-pane-mode="secondary:compare" aria-pressed="false">滑动对比</button><button data-pane-mode="secondary:result" aria-pressed="false">处理结果</button></div></div>
+          <div id="secondaryViewport" class="viewport" tabindex="0" aria-label="副视图，滚轮缩放，拖动平移"><canvas id="secondaryCanvas"></canvas><div class="split-label before" hidden>原图</div><div class="split-label after" hidden>处理结果</div><button class="split-handle" hidden aria-label="拖动副视图分界" role="slider" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50"><span>↔</span></button><span class="pane-loading" hidden>加载细节…</span></div>
+        </section>
+      </div>
+      <div class="adjustment-bar"><span id="adjustmentState" role="status">当前显示已保留结果</span><div><button id="discardAdjustments" disabled>取消草稿</button><button id="commitAdjustments" class="primary" disabled>保留调整</button></div></div>
+      <div id="editFeedback" class="edit-feedback" role="status" hidden></div>
+      <footer class="canvas-footer"><div><strong id="photoName">尚未导入照片</strong><span id="photoMeta">原尺寸图块 · 可逆调整</span></div><div class="history-actions"><button id="undoButton" title="撤销 Ctrl+Z" disabled>撤销</button><button id="redoButton" title="重做 Ctrl+Shift+Z" disabled>重做</button></div></footer>
+    </section>
+    <aside class="tools" aria-label="局部修补工具">
+      <div class="tools-heading"><strong>照片调整</strong><span id="panelState" class="research-tag">选择照片</span></div>
+      <nav class="workspace-tabs" role="tablist" aria-label="照片处理模块"><button data-workspace-tab="retouch" role="tab" aria-selected="true" class="active">修片</button><button data-workspace-tab="geometry" role="tab" aria-selected="false">塑形</button><button data-workspace-tab="lighting" role="tab" aria-selected="false">光影</button><button data-workspace-tab="presets" role="tab" aria-selected="false">预设</button></nav>
+      <div class="tool-scroll">
+        <section data-workspace-panel="retouch">
+          <div class="subtabs" role="group" aria-label="修片工具"><button data-repair-tab="adjustments" class="active" aria-pressed="true">肤质与色彩</button><button data-repair-tab="blemishes" aria-pressed="false">瑕疵修补</button></div>
+          <section id="retouchAdjustments">
+            <div class="preparation-card"><strong id="retouchPreparationState">正在检查处理能力…</strong><p id="retouchPreparationMessage">导入照片后，可准备人物分区与精修效果。</p><button id="prepareRetouch" class="full-width" disabled>准备精修</button></div>
+            <div class="edit-scope-switch" role="group" aria-label="修片作用范围"><button data-retouch-scope="global" aria-pressed="true" class="active">全图</button><button data-retouch-scope="local" aria-pressed="false" disabled>框选区域</button></div>
+            <p id="retouchScopeNote" class="subtle">调整整张照片；框选后可另设局部效果。</p>
+            <div id="retouchControlHost"></div>
+            <button id="resetRetouch" class="full-width" disabled>重置当前修片层</button>
+          </section>
+          <section id="retouchBlemishes" hidden>
+        <p class="explanation">模型仅提出疑似瑕疵。痣、雀斑与妆面可能被误判，请逐处查看后决定是否修补。</p>
+        <label class="field">自动分析人物<select id="faceSelect" disabled><option value="">自动选择主要人物</option></select></label>
+        <div class="analysis-actions"><button id="focusFace" disabled>查看人物</button><label>模型推理设备<select id="deviceSelect"><option value="auto">自动</option><option value="cuda">NVIDIA GPU</option><option value="cpu">CPU</option></select></label></div>
+        <button id="analyzeButton" class="primary full-width" disabled>分析候选瑕疵</button>
+        <p id="analysisMessage" class="subtle" role="status">导入照片后开始。分析过程不会自动修改照片。</p>
+        <button id="openManualTool" class="full-width" disabled>手动标记漏检位置</button>
+        <div class="candidate-heading"><strong>修补位置 <span id="candidateCount">0</span></strong><button id="clearSelection" class="quiet" title="关闭全部自动与手动修补，保留修片、塑形和灯光参数。" disabled>清除修补</button></div>
+        <div class="candidate-guide"><label><input id="showMarkers" type="checkbox" checked> 在画布显示位置</label><span id="selectionSummary">尚未分析</span></div>
+        <div id="candidateList" class="candidate-list"><p class="candidate-empty">分析完成后，点击一处候选查看原尺寸细节，勾选后修补。再次取消勾选可恢复该处。</p></div>
+          </section>
+        </section>
+        <section data-workspace-panel="geometry" hidden>
+          <div class="preparation-card"><strong id="geometryPreparationState">人物尚未准备</strong><p id="geometryPreparationMessage">选择人物后微调轮廓；轮廓推拉也可直接在画布操作。</p><button id="prepareGeometry" class="full-width" disabled>识别人物</button></div>
+          <label class="field">调整人物<select id="geometryFaceSelect" disabled><option value="">尚未识别人物</option></select></label>
+          <div class="edit-scope-switch" role="group" aria-label="调整侧别"><button data-shape-side="both" class="active" aria-pressed="true">两侧</button><button data-shape-side="left" aria-pressed="false">左侧</button><button data-shape-side="right" aria-pressed="false">右侧</button></div>
+          <div id="geometryControlHost"></div>
+          <section class="control-group"><h3>画布塑形</h3><p class="subtle">在处理结果上微调轮廓；固定区域可保护不希望移动的部位。</p><label class="field">笔刷作用<select id="pushMode"><option value="push">推拉轮廓</option><option value="restore">恢复局部轮廓</option><option value="protect">固定区域</option></select></label><button id="activatePush" class="full-width" disabled>在画布调整轮廓</button><label class="field">笔刷力度<input id="pushStrength" type="range" min="1" max="100" value="35"><output id="pushStrengthValue">35%</output></label><div class="button-pair"><button id="undoPush" disabled>撤销上一笔塑形</button><button id="clearGeometryProtection" disabled>清除固定区域</button></div><div id="geometryEdgeHost"></div></section>
+          <button id="resetGeometry" class="full-width" disabled>重置全部塑形</button>
+        </section>
+        <section data-workspace-panel="lighting" hidden>
+          <div class="preparation-card"><strong id="lightingPreparationState">正在检查光影模型…</strong><p id="lightingPreparationMessage">准备照片后，可在画布拖动光源并查看草稿。</p><button id="prepareLighting" class="full-width" disabled>准备光影调整</button></div>
+          <section class="control-group"><h3>灯光预设</h3><div id="lightingPresets" class="lighting-presets"></div></section>
+          <label class="field">布光范围<select id="lightingScope" disabled><option value="subject">主体</option><option value="background">背景</option><option value="all">主体与背景</option></select></label><p class="subtle">主体与背景分别保存灯光；选择两者时同步调整。</p>
+          <div class="light-list-heading"><strong>画布光源</strong><button id="addLight" disabled>＋ 添加光源</button></div><div id="lightList" class="light-list"></div>
+          <label class="field">光源类型<select id="lightType" disabled><option value="directional">方向光</option><option value="point">点光源</option><option value="spot">聚光灯</option><option value="area">柔光面光源</option></select></label>
+          <div id="lightingControlHost"></div><div class="button-pair"><button id="removeLight" disabled>移除此光源</button><button id="resetLighting" disabled>重置全部灯光</button></div>
+        </section>
+        <section data-workspace-panel="presets" hidden>
+          <p class="explanation">按照片用途选择起点，再检查肤质与五官细节。年龄分类由你选择。</p>
+          <div id="presetCategories" class="preset-categories" role="group" aria-label="预设人像分类"></div>
+          <input id="presetSearch" class="preset-search" type="search" placeholder="搜索效果或用途" aria-label="搜索预设">
+          <label class="field">套用范围<select id="presetTarget"><option value="current">当前照片 · 先预览</option><option value="selected">多选照片 · 批量保留</option></select></label>
+          <label class="field preset-strength">预设强度<input id="presetStrength" type="range" min="0" max="100" value="100"><output id="presetStrengthValue">100%</output></label>
+          <div id="presetList" class="preset-list"></div><p id="presetFeedback" class="subtle" role="status">正在读取预设…</p>
+          <button id="applyBatchPreset" class="primary full-width" disabled hidden>套用到所选照片</button><p id="batchStatus" class="subtle" role="status" hidden></p>
+        </section>
+        <div id="exportResult" class="export-result" hidden></div>
+      </div>
+    </aside>
+  </main>
+  <div id="statusBar" class="statusbar" role="status" aria-live="polite"><span id="statusText">正在连接本机服务…</span><button id="retryButton" hidden>重试</button><span class="shortcut-note">滚轮缩放 · 拖动平移 · 鼠标所在视窗按 V 切换显示</span></div>
+  <input id="fileInput" type="file" accept="image/jpeg,image/png,image/tiff,image/webp" multiple hidden>
+  <dialog id="modelsDialog" class="models-dialog"><div class="dialog-heading"><div><h2>模型与计算设备</h2><p>查看已就绪的功能、缺少的模型及当前处理设备。</p></div><button id="closeModels" aria-label="关闭模型面板">×</button></div><section class="device-card"><h3>模型推理设备</h3><label class="field">优先使用<select id="globalDeviceSelect"><option value="auto">自动选择</option><option value="cpu">CPU</option><option value="cuda">NVIDIA GPU</option></select></label><p id="deviceSummary" class="subtle">正在检查设备…</p><button id="refreshModels">重新检查模型与设备</button></section><div id="modelCatalog"></div><p id="modelsFeedback" class="subtle" role="status"></p></dialog>
+</body>
+</html>

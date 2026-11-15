@@ -21,7 +21,7 @@
  document.addEventListener('keydown',event=>{
   if(event.code!=='KeyV'&&event.key?.toLowerCase()!=='v')return;
   if(event.defaultPrevented||event.repeat||event.isComposing||event.keyCode===229||event.ctrlKey||event.metaKey||event.altKey||event.shiftKey)return;
-  if(!hovered||!pointer||!photo()||pressed||drawing||previewHolding||window.PortraitSelection?.isDragging())return;
+  if(!hovered||!pointer||!photo()||pressed||drawing||previewHolding||window.PortraitSelection?.isDragging()||window.PortraitSpotRepair?.isDragging()||window.PortraitShape?.isDragging())return;
   if(document.querySelector('dialog[open]')||typing(event.target)||typing(document.activeElement))return;
   if(hovered==='secondary'&&state.layout!=='dual')return;
   const pane=previewPanes[hovered],viewport=$(pane.viewport),bounds=viewport.getBoundingClientRect();

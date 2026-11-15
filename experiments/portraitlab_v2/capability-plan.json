@@ -1,0 +1,740 @@
+{
+  "schema_version": 1,
+  "title": "照影 V2：功能、模型与证据对应表",
+  "reviewed_on": "2026-11-14",
+  "timezone": "Asia/Shanghai",
+  "document_role": "研究及验收规划；不是运行时模型清单，也不是功能已完成声明。",
+  "scope": {
+    "installed_application": "冻结现有软件；本计划不授权修改当前安装、制作补丁或发布。",
+    "first_prototype": [
+      "原生分辨率分块画布",
+      "确认处理人物",
+      "显示神经瑕疵候选",
+      "用户逐点选择修补且默认全部关闭",
+      "选定区域合成与撤销"
+    ],
+    "later_stages": [
+      "高分辨率语义保护",
+      "分层修肤与区域预设",
+      "局部笔刷与脸型工具的人机交互",
+      "可信的光影调整",
+      "跨机器性能及便携部署"
+    ],
+    "new_inference_performed_for_this_document": false,
+    "new_models_downloaded_for_this_document": false
+  },
+  "status_legend": {
+    "existing_partial": "现有软件已有局部能力，但质量或覆盖不满足目标。",
+    "candidate_measured_single_photo": "独立实验在一张原片上有记录；尚不能作为通用默认能力。",
+    "research_only": "已调查公开来源或流程，未通过本项目画质与部署验收。",
+    "uncovered": "尚无经过本项目验证的专项方案。",
+    "algorithm_rework": "主要需要图像算法、几何或交互工程；不是增加模型数量即可解决。"
+  },
+  "counting_policy": [
+    "同一模型的强度、色温和预设参数变化不算新模型能力。",
+    "编辑器、工作流与传统摄影处理引擎不登记为神经模型。",
+    "检测、分割和深度估计是分析能力，不能直接算作修肤或可信重布光能力。",
+    "候选的论文指标、仓库热度、参数量或权重文件大小不等于本软件画质、显存或部署表现。"
+  ],
+  "evidence_registry": [
+    {
+      "id": "ev_model_manifest",
+      "kind": "product_manifest",
+      "path": "models/manifest.json",
+      "supports": "现有模型角色、代码及权重许可边界；ModelScope 在产品清单中仍为 planned。"
+    },
+    {
+      "id": "ev_depth_manifest",
+      "kind": "product_manifest",
+      "path": "models/lighting-manifest.json",
+      "supports": "Depth Anything V2 Small 的固定版本、SHA256 和许可。"
+    },
+    {
+      "id": "ev_modelscope_trial",
+      "kind": "single_photo_inference_review",
+      "path": "private-research/outputs/portraitlab-quality-benchmark-20261114/abpn/findings.txt",
+      "supports": "局部红点改善、褐色点误修、网络对应核验、ROI 性能；并非整套应用或多样本证明。"
+    },
+    {
+      "id": "ev_combination_review",
+      "kind": "single_photo_visual_and_code_review",
+      "path": "private-research/outputs/portraitlab-combination-test-20261114/review.txt",
+      "supports": "人工保护后局部修补加轻度明暗可保留指定标记；不证明模型自动保痣。"
+    },
+    {
+      "id": "ev_false_face",
+      "kind": "single_photo_failure_case",
+      "path": "private-research/outputs/portraitlab-quality-benchmark-20261114/abpn/review-background.json",
+      "supports": "图案包被误作人脸，全脸自动处理影响包内像素；限制到已确认主体后避免误改。"
+    },
+    {
+      "id": "ev_candidate_catalog",
+      "kind": "source_and_license_research",
+      "path": "private-research/outputs/portraitlab-pipeline-research-20261114/候选清单.json",
+      "supports": "ModelScope、darktable、Acly、AdaInt、RetouchFormer、Marigold 候选角色和限制。"
+    },
+    {
+      "id": "ev_color_research",
+      "kind": "source_and_license_research",
+      "path": "private-research/work/portraitlab-pipeline-research-round2-20261114/color/evidence.json",
+      "supports": "AdaInt/PPR10K 固定来源、无推理语义蒙版、权重和数据许可分开；darktable 浮点处理。"
+    },
+    {
+      "id": "ev_face_shape_source",
+      "kind": "current_source",
+      "path": "portraitlab/face_shape.py",
+      "supports": "现有脸型工具使用局部二维变形，不是生成模型，也不是三维解剖一致性证明。"
+    }
+  ],
+  "candidate_registry": [
+    {
+      "id": "mediapipe_landmarks",
+      "name": "MediaPipe Face Landmarker",
+      "kind": "analysis_model",
+      "status": "existing_partial",
+      "role": "定位五官与建立保护区域；只作候选定位。",
+      "code_license": "Apache-2.0（MediaPipe 框架）",
+      "weights_license": "精确权重授权尚未独立核实",
+      "source_url": "https://ai.google.dev/edge/mediapipe/solutions/vision/face_landmarker",
+      "sha256": "64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff",
+      "limitations": [
+        "不是皮肤修复模型。",
+        "检测错误不能自动转化为处理目标。"
+      ],
+      "distribution_decision": "复核精确权重授权后再决定再分发；框架许可不能替代权重许可。",
+      "evidence_ids": [
+        "ev_model_manifest",
+        "ev_false_face"
+      ]
+    },
+    {
+      "id": "mediapipe_selfie",
+      "name": "MediaPipe Selfie Multiclass 256×256",
+      "kind": "segmentation_model",
+      "status": "existing_partial",
+      "role": "粗分背景、头发、脸部皮肤、身体皮肤、衣服及附件。",
+      "code_license": "Apache-2.0（MediaPipe 框架）",
+      "weights_license": "精确权重授权尚未独立核实",
+      "source_url": "https://ai.google.dev/edge/mediapipe/solutions/vision/image_segmenter",
+      "sha256": "c6748b1253a99067ef71f7e26ca71096cd449baefa8f101900ea23016507e0e0",
+      "limitations": [
+        "256×256 粗分割不能当作全分辨率发丝、眼唇或瑕疵边界真值。",
+        "不能区分痘、痣、雀斑和临时红印。"
+      ],
+      "distribution_decision": "保留为低成本分析基线；更细分割与边界修整候选尚待选择。",
+      "evidence_ids": [
+        "ev_model_manifest"
+      ]
+    },
+    {
+      "id": "modelscope_skin",
+      "name": "ModelScope Skin Retouching",
+      "kind": "specialist_retouch_model",
+      "status": "candidate_measured_single_photo",
+      "role": "检测瑕疵候选、局部神经修补、独立均肤分支。",
+      "source_url": "https://modelscope.cn/models/damo/cv_unet_skin_retouching_torch/summary",
+      "code_revision": "34844f9977a33f541cb5d8959c40a57cd6155b3b",
+      "weight_revision": "30f890aab89b787aae93c3f396dbf32714bd950e",
+      "code_license": "Apache-2.0",
+      "weights_license": "本轮归档官方模型卡标注 Apache License 2.0；具体文件来源与 SHA256 须随整合清单保留。",
+      "upstream_defaults_warning": "官方默认关闭局部修补并开启美白；V2 不能照搬。",
+      "limitations": [
+        "高置信度不代表可自动去除：面颊褐色点最大置信度 0.883，也被明显淡化。",
+        "均肤在本张原片上作用很轻。",
+        "只有一张原片、一个主脸 ROI 的测试；不是全功能质量证明。"
+      ],
+      "prototype_policy": "全部候选默认关闭；用户确认后逐点修补；痣与雀斑保护必须可见且可撤销。",
+      "distribution_decision": "可进入独立原型；发布仍须完整文件级来源、许可、哈希及验收。",
+      "evidence_ids": [
+        "ev_modelscope_trial",
+        "ev_combination_review",
+        "ev_candidate_catalog"
+      ]
+    },
+    {
+      "id": "classic_frequency",
+      "name": "传统局部修补／分频／明暗与色彩",
+      "kind": "image_processing_engine",
+      "status": "algorithm_rework",
+      "role": "非生成的点修、低频肤色整理、保留高频细节、ICC 与浮点合成；可作为 CPU 基础能力。",
+      "source_url": "https://docs.darktable.org/usermanual/stable/en/module-reference/processing-modules/retouch/",
+      "reference_project": "darktable",
+      "reference_code_revision": "97912518a5a9a9786aeee3c38116fbc999412ff8",
+      "code_license": "照影现有代码 AGPL-3.0-only；若使用 darktable 代码，另保留 GPLv3 体系及具体依赖条款。",
+      "weights_license": "不需要神经权重",
+      "limitations": [
+        "darktable 是摄影引擎，不能当作自动去痘模型。",
+        "手工明暗整理不能冒称自动发现眼袋、皱纹或红斑。",
+        "参考源码 HEAD 不是已选择或验证的发行版本。"
+      ],
+      "distribution_decision": "先明确自主算法、代码复用或伴随引擎边界，再记录对应许可。",
+      "evidence_ids": [
+        "ev_combination_review",
+        "ev_candidate_catalog",
+        "ev_color_research"
+      ]
+    },
+    {
+      "id": "acly_refine",
+      "name": "Acly／Krita 局部 Refine",
+      "kind": "generative_workflow",
+      "status": "research_only",
+      "role": "疑难局部区域的可选补画候选，结合原片条件、低去噪和受限合成。",
+      "source_url": "https://github.com/Acly/comfyui-inpaint-nodes/blob/5b7681746fe19e563113d27366ba85236bc1ba5b/workflows/inpaint-refine.json",
+      "code_license": "GPL-3.0；插件与节点分别记录",
+      "weights_license": "实际选择的 Fooocus／SDXL 等权重另适用 OpenRAIL／OpenRAIL++ 等具体条款",
+      "limitations": [
+        "工作流成熟不代表皮肤画质已验证。",
+        "模型去噪蒙版不能替代最终合成蒙版。",
+        "可能重画纹理或结构；不作为普通修肤默认步骤。"
+      ],
+      "distribution_decision": "可选研究项；尚无本项目画质、12GB 或 CPU 验收。",
+      "evidence_ids": [
+        "ev_candidate_catalog"
+      ]
+    },
+    {
+      "id": "adaint_ppr10k",
+      "name": "AdaInt–PPR10K",
+      "kind": "learned_color_transform",
+      "status": "candidate_measured_single_photo",
+      "role": "内容自适应 LUT 与低强度色彩建议，不负责空间瑕疵修复。",
+      "source_url": "https://github.com/ImCharlesY/AdaInt",
+      "code_revision": "5678851339dff90becb09c3dec41e7214207ccbc",
+      "dataset_code_revision": "239490b8a8e917f2c29e3016ee2f6543c3c1bfba",
+      "code_license": "Apache-2.0",
+      "weights_license": "权重再分发授权尚待独立核实；PPR10K 数据另有限定非商用研究的条款。",
+      "limitations": [
+        "推理 LUT 本身没有皮肤语义保护。",
+        "相近颜色的背景也会变化。",
+        "单图低强度试验不能推出通用审美。"
+      ],
+      "distribution_decision": "研究对照可保留；权重授权未明确前不随公开软件打包。",
+      "evidence_ids": [
+        "ev_candidate_catalog",
+        "ev_color_research",
+        "ev_combination_review"
+      ]
+    },
+    {
+      "id": "depth_small",
+      "name": "Depth Anything V2 Small",
+      "kind": "depth_analysis_model",
+      "status": "existing_partial",
+      "role": "相对深度估计，供近似法线和受约束局部照明使用。",
+      "source_url": "https://github.com/DepthAnything/Depth-Anything-V2",
+      "code_revision": "a561b849ebae10a6f5ef49e26c83cbbcd36c71bf",
+      "weight_revision": "03876f8651c73a60fe4c2c48294e09fcb6838fcf",
+      "sha256": "715fade13be8f229f8a70cc02066f656f2423a59effd0579197bbf57860e1378",
+      "code_license": "Apache-2.0",
+      "weights_license": "Small 权重 Apache-2.0；不外推到其他型号。",
+      "limitations": [
+        "相对深度不是实测几何或真实表面法线。",
+        "没有恢复反照率、材质与旧光照，无法单独完成可信重布光。"
+      ],
+      "distribution_decision": "可保留分析基线；不把模型就绪等同于重布光画质合格。",
+      "evidence_ids": [
+        "ev_depth_manifest"
+      ]
+    },
+    {
+      "id": "ic_light_v1",
+      "name": "IC-Light v1",
+      "kind": "generative_relighting_model",
+      "status": "existing_partial",
+      "role": "可选生成式重布光。",
+      "source_url": "https://huggingface.co/lllyasviel/ic-light",
+      "code_license": "Apache-2.0",
+      "weights_license": "CreativeML OpenRAIL-M；固定基础模型条款另须保留。",
+      "limitations": [
+        "可能改变身份细节、服装或环境。",
+        "不能承诺拖动光源与最终输出逐像素一致。"
+      ],
+      "distribution_decision": "独立于保真修片流程；通过保真验收前不作默认重布光。",
+      "evidence_ids": [
+        "ev_model_manifest"
+      ]
+    },
+    {
+      "id": "marigold_iid",
+      "name": "Marigold-IID-Lighting",
+      "kind": "intrinsic_image_analysis_model",
+      "status": "research_only",
+      "role": "研究反照率、漫反射明暗与残差，用作有界低频明暗场参考。",
+      "source_url": "https://huggingface.co/prs-eth/marigold-iid-lighting-v1-1",
+      "code_license": "Apache-2.0",
+      "weights_license": "OpenRAIL++-M",
+      "limitations": [
+        "分解能力不等于知道怎样修好人像。",
+        "不是现成的完整人像 Dodge & Burn 或重布光管线。",
+        "本项目尚无画质、实时交互和 12GB 实测。"
+      ],
+      "distribution_decision": "后续研究；不得替代已验证保真算法并默认为可用。",
+      "evidence_ids": [
+        "ev_candidate_catalog"
+      ]
+    },
+    {
+      "id": "lbm",
+      "name": "LBM Relighting",
+      "kind": "generative_relighting_model",
+      "status": "research_only",
+      "role": "单步图像协调与重布光研究。",
+      "source_url": "https://huggingface.co/jasperai/LBM_relighting",
+      "code_license": "官方仓库声明 CC-BY-NC-4.0",
+      "weights_license": "CC-BY-NC-4.0，并保留基础模型条款。",
+      "limitations": [
+        "非商用限制不会因本项目代码开源而消失。",
+        "未作本项目真实照片质量及硬件验收。"
+      ],
+      "distribution_decision": "如采用，应为条款清晰的可选研究组件，不能宣称无条件通用开源核心。",
+      "evidence_ids": [
+        "ev_model_manifest"
+      ]
+    },
+    {
+      "id": "retouchformer",
+      "name": "RetouchFormer",
+      "kind": "specialist_retouch_model",
+      "status": "research_only",
+      "role": "专用瑕疵修复的质量挑战者。",
+      "source_url": "https://github.com/Davidcoach/RetouchFormer_AAAI_24",
+      "code_license": "本轮未找到明确授权",
+      "weights_license": "尚未明确",
+      "limitations": [
+        "未下载或运行验收。",
+        "重建输出不保证瑕疵外像素一致。"
+      ],
+      "distribution_decision": "当前排除公开软件整合，等待明确代码及权重授权。",
+      "evidence_ids": [
+        "ev_candidate_catalog"
+      ]
+    },
+    {
+      "id": "face_geometry",
+      "name": "局部二维脸型变形",
+      "kind": "geometric_algorithm",
+      "status": "algorithm_rework",
+      "role": "基于确认后的面部关键点进行局部、可撤销形变。",
+      "code_license": "照影代码 AGPL-3.0-only",
+      "weights_license": "几何算法自身无权重；关键点依赖单独管理。",
+      "limitations": [
+        "影响区内的头发、耳饰和背景也可能被移动。",
+        "二维局部变形不能当作三维一致的面部重建。"
+      ],
+      "distribution_decision": "优先改造影响区提示、幅度限制、左右独立和恢复操作；普通预设默认关闭。",
+      "evidence_ids": [
+        "ev_face_shape_source"
+      ]
+    }
+  ],
+  "features": [
+    {
+      "id": "person_detection",
+      "label": "处理人物选择",
+      "priority": "P0",
+      "status": "existing_partial",
+      "current": "可检测人脸，但检测结果不是可靠的处理对象清单。",
+      "candidate_ids": [
+        "mediapipe_landmarks"
+      ],
+      "evidence_ids": [
+        "ev_false_face",
+        "ev_model_manifest"
+      ],
+      "known_failures": [
+        "花纹包被当作人脸；自动全脸处理改动包内 27,325 像素，最大通道差 2/255。"
+      ],
+      "next_actions": [
+        "候选人脸覆盖层与明确选中态。",
+        "默认只处理用户确认人物；允许取消误检。"
+      ],
+      "availability_policy": "未确认人物时不得自动对全部检测框修肤。",
+      "gate_ids": [
+        "g_target_confirmation",
+        "g_no_silent_fallback"
+      ]
+    },
+    {
+      "id": "skin_semantic_mask",
+      "label": "皮肤与五官保护",
+      "priority": "P0",
+      "status": "existing_partial",
+      "current": "低分辨率语义蒙版结合关键点保护；精细边界和稳定皮肤特征仍不足。",
+      "candidate_ids": [
+        "mediapipe_selfie",
+        "mediapipe_landmarks"
+      ],
+      "evidence_ids": [
+        "ev_model_manifest",
+        "ev_combination_review"
+      ],
+      "known_failures": [
+        "粗皮肤类别无法区分痘、痣和雀斑；边界放大不能补回原本未识别的细节。"
+      ],
+      "next_actions": [
+        "筛选代码及权重许可可审计的高分辨率人脸解析候选。",
+        "验证眼眉唇、胡须、发丝、妆容和皮肤边界；加手动保护／排除。"
+      ],
+      "unselected_dependency": "高分辨率人脸解析及边界细化模型尚未选择，不虚报为现成功能。",
+      "availability_policy": "蒙版可查看、可修正；低置信度区域不自动加强处理。",
+      "gate_ids": [
+        "g_local_scope",
+        "g_texture_identity",
+        "g_license_provenance"
+      ]
+    },
+    {
+      "id": "spot_repair",
+      "label": "点状瑕疵与修补笔刷",
+      "priority": "P0",
+      "status": "candidate_measured_single_photo",
+      "current": "传统点修已有；神经局部修补在独立单图试验中改善部分下巴红点，同时误伤褐色点。",
+      "candidate_ids": [
+        "modelscope_skin",
+        "classic_frequency",
+        "acly_refine"
+      ],
+      "evidence_ids": [
+        "ev_modelscope_trial",
+        "ev_combination_review"
+      ],
+      "known_failures": [
+        "检测高置信度不能区分痘与稳定特征。",
+        "强度提高会加强误修。"
+      ],
+      "next_actions": [
+        "先完成候选显示、逐点勾选、保护标记、强度与撤销。",
+        "后续增加可调整笔刷、修补来源和失败恢复。"
+      ],
+      "availability_policy": "首版所有候选默认关闭；无需生成式补画即可完成的点修优先采用非生成流程。",
+      "gate_ids": [
+        "g_candidates_off",
+        "g_candidate_semantics",
+        "g_selected_only",
+        "g_local_scope",
+        "g_history",
+        "g_texture_identity"
+      ]
+    },
+    {
+      "id": "acne_marks_redness",
+      "label": "痘印、泛红与肤色斑驳",
+      "priority": "P1",
+      "status": "uncovered",
+      "current": "亮度、平滑和局部去点不能算作弥漫红斑／色素印的专项解决方案。",
+      "candidate_ids": [
+        "classic_frequency",
+        "modelscope_skin"
+      ],
+      "evidence_ids": [
+        "ev_combination_review",
+        "ev_modelscope_trial"
+      ],
+      "known_failures": [
+        "去点有效不代表均肤有效；全图降红易影响嘴唇、妆容及背景。"
+      ],
+      "next_actions": [
+        "把点状瑕疵与大尺度色斑分为独立层。",
+        "在限定皮肤范围测试低频明暗／色度处理并保留纹理。",
+        "收集授权的真实泛红和色素印样本。"
+      ],
+      "availability_policy": "专项样本未通过前只标为手动调整，不承诺一键祛痘印。",
+      "gate_ids": [
+        "g_local_scope",
+        "g_texture_identity",
+        "g_quality_benefit",
+        "g_sample_coverage"
+      ]
+    },
+    {
+      "id": "eye_tone",
+      "label": "眼周明暗与眼袋",
+      "priority": "P1",
+      "status": "uncovered",
+      "current": "没有经过验证的黑眼圈与眼袋专项模型或形态保持流程。",
+      "candidate_ids": [
+        "classic_frequency"
+      ],
+      "evidence_ids": [],
+      "known_failures": [
+        "单纯提亮可能发灰；平滑可能损失睫毛、下眼睑轮廓及自然卧蚕。"
+      ],
+      "next_actions": [
+        "区分色素、阴影与结构问题，建立受限眼周处理及独立强度。",
+        "将自然卧蚕、睫毛和眼睑边界纳入保护样本。"
+      ],
+      "availability_policy": "不以普通磨皮或美白冒充眼袋消除。",
+      "gate_ids": [
+        "g_texture_identity",
+        "g_quality_benefit",
+        "g_no_hidden_beauty",
+        "g_sample_coverage"
+      ]
+    },
+    {
+      "id": "wrinkle_preserving_retouch",
+      "label": "纹理与年龄特征保留",
+      "priority": "P1",
+      "status": "uncovered",
+      "current": "现有柔肤和单图均肤不足以证明细纹自然减弱或长者皮肤的质感。",
+      "candidate_ids": [
+        "classic_frequency",
+        "modelscope_skin"
+      ],
+      "evidence_ids": [
+        "ev_modelscope_trial"
+      ],
+      "known_failures": [
+        "过度平滑会把自然年龄特征当作瑕疵。"
+      ],
+      "next_actions": [
+        "分离细小瑕疵、肤色起伏与结构皱纹。",
+        "由用户选择长者／成人／少年预设；保留年龄特征是默认目标。"
+      ],
+      "availability_policy": "无自动年龄判断；无默认年轻化、脸型变化或强美白。",
+      "gate_ids": [
+        "g_texture_identity",
+        "g_no_hidden_beauty",
+        "g_quality_benefit",
+        "g_sample_coverage"
+      ]
+    },
+    {
+      "id": "shine_control",
+      "label": "油光与局部高光",
+      "priority": "P1",
+      "status": "uncovered",
+      "current": "曝光／高光滑块只能部分压亮，不是已验证的皮肤镜面高光恢复。",
+      "candidate_ids": [
+        "classic_frequency",
+        "marigold_iid"
+      ],
+      "evidence_ids": [
+        "ev_candidate_catalog"
+      ],
+      "known_failures": [
+        "压暗高光可能发灰；已经剪切的细节无法保证恢复。"
+      ],
+      "next_actions": [
+        "识别皮肤局部亮区并限制色度偏移，先验证非生成处理。",
+        "对不可恢复的剪切区域清楚提示，再提供可选修补。"
+      ],
+      "availability_policy": "内在图像分解仅作研究，不承诺恢复真实缺失纹理。",
+      "gate_ids": [
+        "g_local_scope",
+        "g_texture_identity",
+        "g_quality_benefit"
+      ]
+    },
+    {
+      "id": "portrait_color",
+      "label": "人像色彩与曝光",
+      "priority": "P1",
+      "status": "candidate_measured_single_photo",
+      "current": "传统色彩可用；AdaInt 低强度单图对照不足以建立通用预设。",
+      "candidate_ids": [
+        "classic_frequency",
+        "adaint_ppr10k"
+      ],
+      "evidence_ids": [
+        "ev_color_research",
+        "ev_combination_review",
+        "ev_candidate_catalog"
+      ],
+      "known_failures": [
+        "LUT 不自带皮肤保护；肤色相近的背景会同时变化。"
+      ],
+      "next_actions": [
+        "固定输入 ICC／工作色域，采用浮点串联。",
+        "色彩建议与皮肤局部处理分层；对高光、肤色、妆容做真实样本验收。"
+      ],
+      "availability_policy": "明确全图或局部作用范围；不能要求全图调色后保护点 RGB 与原图完全相等。",
+      "gate_ids": [
+        "g_color_contract",
+        "g_texture_identity",
+        "g_quality_benefit",
+        "g_preview_export",
+        "g_license_provenance"
+      ]
+    },
+    {
+      "id": "subject_matte",
+      "label": "主体与背景分离",
+      "priority": "P1",
+      "status": "existing_partial",
+      "current": "粗分割能支持大区域选择，但发丝、半透明边缘和复杂背景未充分验证。",
+      "candidate_ids": [
+        "mediapipe_selfie"
+      ],
+      "evidence_ids": [
+        "ev_model_manifest"
+      ],
+      "known_failures": [
+        "毛发细节、背景缝隙和边缘光容易出现漏选或光晕。"
+      ],
+      "next_actions": [
+        "选择并验收高分辨率抠图／边界细化候选，保留手工修正。",
+        "分别显示主体、背景和边界过渡范围。"
+      ],
+      "unselected_dependency": "精细抠图模型尚未选择。",
+      "availability_policy": "主体／背景分别可预览并显示蒙版；不自动把粗分割称为精确抠图。",
+      "gate_ids": [
+        "g_local_scope",
+        "g_texture_identity",
+        "g_sample_coverage"
+      ]
+    },
+    {
+      "id": "relighting",
+      "label": "光影重塑",
+      "priority": "P2",
+      "status": "existing_partial",
+      "current": "深度引导的近似照明与可选生成式重布光均存在限制；缺少可信的材质／原光照分解。",
+      "candidate_ids": [
+        "depth_small",
+        "ic_light_v1",
+        "marigold_iid",
+        "lbm"
+      ],
+      "evidence_ids": [
+        "ev_depth_manifest",
+        "ev_model_manifest",
+        "ev_candidate_catalog"
+      ],
+      "known_failures": [
+        "生成式重布光可能改变环境与身份细节。",
+        "单张相对深度不能直接保证真实光源方向、阴影或反射。"
+      ],
+      "next_actions": [
+        "先定义保真交互照明与生成式候选两种清楚的用途。",
+        "拖动时的快速反馈与最终计算若精度不同必须显式区分。",
+        "以同配置最终预览确认后再保留，验证导出一致性。"
+      ],
+      "availability_policy": "不把近似效果命名为物理准确；未验收前不默认启动生成模型。",
+      "gate_ids": [
+        "g_relighting_contract",
+        "g_preview_export",
+        "g_texture_identity",
+        "g_no_silent_fallback",
+        "g_hardware"
+      ]
+    },
+    {
+      "id": "face_shape",
+      "label": "脸型微调",
+      "priority": "P2",
+      "status": "algorithm_rework",
+      "current": "局部二维变形已经存在；重点缺口是可控范围、背景影响和操作反馈。",
+      "candidate_ids": [
+        "mediapipe_landmarks",
+        "face_geometry"
+      ],
+      "evidence_ids": [
+        "ev_face_shape_source"
+      ],
+      "known_failures": [
+        "附近发丝、耳饰和背景可能被牵动；侧脸与遮挡不保证几何合理。"
+      ],
+      "next_actions": [
+        "拖动时显示影响区域与幅度，支持左右独立和单项复位。",
+        "对多角度、耳饰和直线背景建立回归图。"
+      ],
+      "availability_policy": "普通修肤预设不自动改变脸型；明确每项形变及影响范围。",
+      "gate_ids": [
+        "g_geometry_scope",
+        "g_no_hidden_beauty",
+        "g_history",
+        "g_gesture_feedback"
+      ]
+    },
+    {
+      "id": "native_canvas_and_history",
+      "label": "原生画布、对照与操作记录",
+      "priority": "P0",
+      "status": "algorithm_rework",
+      "current": "本阶段重建独立原型；清晰度、状态同步和可撤销操作必须与画质同时验收。",
+      "candidate_ids": [],
+      "evidence_ids": [],
+      "known_failures": [
+        "缩小预览容易遮住误修，不能用作唯一画质验收。",
+        "预览、处理结果与导出状态不一致会使工具不可依赖。"
+      ],
+      "next_actions": [
+        "原生 level 0 分块、缩放、平移、单框／双框及同步位置。",
+        "每框独立选择原图／滑动对比／处理结果；快捷键只影响鼠标所在框。",
+        "候选开关和参数变化写入同一撤销历史，显示处理中／已更新／失败。"
+      ],
+      "availability_policy": "缩略图和低分辨率预览必须可识别；不冒称原生细节。",
+      "gate_ids": [
+        "g_source_integrity",
+        "g_native_pixels",
+        "g_tile_seams",
+        "g_pane_controls",
+        "g_history",
+        "g_preview_export",
+        "g_cache_latency",
+        "g_no_silent_fallback"
+      ]
+    }
+  ],
+  "preset_policy": {
+    "categories": [
+      "通用",
+      "长者",
+      "成人",
+      "少年"
+    ],
+    "category_selection": "用户选择；不依据照片自动推断年龄。",
+    "implementation": "预设是已验收步骤的有序组合，记录模型／算法版本、作用区域、保护规则、强度及失败处理。",
+    "ordinary_defaults": {
+      "automatic_face_shape": false,
+      "automatic_whitening": false,
+      "automatic_age_change": false,
+      "generative_repainting": false
+    },
+    "first_prototype": "优先逐点确认候选；尚不将该试验封装为一键去痘默认预设。",
+    "expansion_rule": "只有对应问题、真实样本收益和可控范围验收通过，才增加公开预设。",
+    "initial_catalog_status": "四类结构保留；具体默认参数和更多内容尚待样本验收，不能从单张照片推定。"
+  },
+  "hardware_policy": {
+    "target_gpu": "NVIDIA RTX 4070 Ti 12GB",
+    "target_gpu_validation_status": "not_tested",
+    "observed_trial": {
+      "gpu": "NVIDIA RTX 5060 Ti 16GB",
+      "torch": "2.7.1+cu128",
+      "dtype": "float32",
+      "roi": [
+        1431,
+        1527
+      ],
+      "warm_detection_and_repair_seconds": 0.91,
+      "warm_even_skin_seconds": [
+        0.09,
+        0.1
+      ],
+      "model_loading_seconds": 5.04,
+      "cold_first_even_skin_seconds": 11.72,
+      "torch_peak_allocated_mib": 833,
+      "torch_peak_reserved_mib": 1278,
+      "scope": "只含单个主脸 ROI 与三个网络；不含完整程序、驱动、人脸检测、语义分割或端到端显示。",
+      "evidence_ids": [
+        "ev_modelscope_trial"
+      ]
+    },
+    "cpu": "必须保留可用的导入、原生查看、传统局部／色彩处理与导出；神经功能需独立测量并明确可用状态。",
+    "fallback": "用户明确选择替代算法后才可切换；禁止神经功能失败后静默降级并报告成功。",
+    "minimum_spec": "尚未测得最低显卡／显存门槛；不能由权重大小或上述单 ROI 峰值推出。"
+  },
+  "release_policy": {
+    "current_decision": "研究及独立原型，暂不打包、不更新当前程序、不上传 GitHub。",
+    "shipping_requirements": [
+      "功能对应验收通过并记录失败样本。",
+      "代码、权重、基础模型和数据来源分别核对。",
+      "精确 revision、文件 SHA256、许可证来源与必要通知可追溯。",
+      "排除私人原片、模型权重和本地绝对路径等不应发布内容，按各自产物授权决定分发。",
+      "完成目标机器与未安装开发环境的干净机器验收。"
+    ],
+    "quality_comparison": "没有同一原片的质镜成片；目前不能声称达到或超过质镜。"
+  }
+}

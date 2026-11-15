@@ -1,10 +1,19 @@
 /* Preset library and atomic batch undo. SPDX-License-Identifier: AGPL-3.0-only */
 'use strict';
 const portraitGroups = [{id:'general',name:'通用'},{id:'senior',name:'长者人像'},{id:'adult',name:'成人人像'},{id:'youth',name:'少年人像'}];
-const presetUI = {items:[], categories:[], groups:portraitGroups, favorites:new Set(), group:'general', filter:'all', purpose:'all', query:'', applied:new Map(), saving:false, snapshot:null};
-function paramsEqual(a,b){return !!a&&!!b&&Object.keys({...a,...b}).every(key=>key==='acne'?(a[key]??0)===(b[key]??0):a[key]===b[key]);}
+const presetUI = {items:[], categories:[], groups:portraitGroups, favorites:new Set(), group:'general', filter:'all', purpose:'all', query:'', applied:new Map(), groupApplied:new Map(), feedback:new Map(), applying:false, saving:false, snapshot:null};
+const processingGroupLabels={skin:'修肤',light:'明暗',color:'色彩'};
+function paramValue(params,key){return params?.[key]??(key==='acne'?0:key==='acne_sensitivity'?.5:undefined);}
+function paramsEqual(a,b){return !!a&&!!b&&Object.keys({...a,...b}).every(key=>paramValue(a,key)===paramValue(b,key));}
+function presetGroups(preset){return preset.apply_groups||({retouch:['skin'],body:['skin'],light:['light'],color:['color']}[preset.category])||['skin','light','color'];}
+function presetKeys(preset){return preset.apply_keys||Object.keys(preset.params||{});}
+function appliedPresetMatches(record,params){return !!record&&!!params&&(record.keys||Object.keys(record.params)).every(key=>paramValue(record.params,key)===paramValue(params,key));}
 function presetScopeKey(p){return `${p.id}:${window.PortraitSelection?.isEditing(p)?'local':'global'}`;}
-function presetEditingBlocked(){return !photo()||state.locked||!!window.PortraitSelection?.isArmed();}
+function presetEditingBlocked(){return !photo()||state.locked||presetUI.applying||!!window.PortraitSelection?.isArmed();}
+function setAdjustmentStage(stage){if(!Object.hasOwn(processingGroupLabels,stage))return;for(const button of document.querySelectorAll('[data-adjustment-tab]')){const active=button.dataset.adjustmentTab===stage;button.classList.toggle('active',active);button.setAttribute('aria-selected',String(active));button.tabIndex=active?0:-1;}for(const panel of document.querySelectorAll('[data-adjustment-stage]'))panel.hidden=panel.dataset.adjustmentStage!==stage;}
+for(const button of document.querySelectorAll('[data-adjustment-tab]')){button.onclick=()=>setAdjustmentStage(button.dataset.adjustmentTab);button.addEventListener('keydown',event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();const tabs=[...document.querySelectorAll('[data-adjustment-tab]')],index=tabs.indexOf(button),next=tabs[event.key==='Home'?0:event.key==='End'?tabs.length-1:(index+(event.key==='ArrowLeft'?-1:1)+tabs.length)%tabs.length];setAdjustmentStage(next.dataset.adjustmentTab);next.focus();});}
+setAdjustmentStage('skin');
+function presetFeedback(message,kind='ready',p=photo()){if(p)presetUI.feedback.set(presetScopeKey(p),{message,kind});const node=$('presetFeedback');if(node){node.textContent=message;node.dataset.state=kind;}}
 function acceptPresetCatalog(data){
  presetUI.items=data.presets||[];presetUI.categories=data.categories||data.preset_categories||[];presetUI.favorites=new Set(data.favorites||data.preset_favorites||[]);
  const groups=data.portrait_groups||data.preset_portrait_groups||[];presetUI.groups=portraitGroups.map(group=>groups.find(item=>item.id===group.id)||group);
@@ -37,7 +46,7 @@ function renderPresetCards(){
  for(const preset of items){
   const card=document.createElement('div');card.className='preset-card';card.dataset.preset=preset.id;
   const apply=document.createElement('button');apply.type='button';apply.className='preset-apply';apply.disabled=presetEditingBlocked();apply.title=`${preset.name}：${preset.description||"自定义参数"}。${editScopeLabel()}。`;
-  const name=document.createElement('strong');name.textContent=preset.name;const description=document.createElement('span');description.textContent=preset.description||'自定义数值参数';apply.append(name,description);apply.onclick=()=>applyClassicPreset(preset);
+  const name=document.createElement('strong');name.textContent=preset.name;const description=document.createElement('span');description.className='preset-description';description.textContent=preset.description||'自定义数值参数';const scope=document.createElement('span');scope.className='preset-operation-label';scope.textContent=(preset.adaptive?'自适应 · ':'')+(preset.apply_mode==='snapshot'?'完整效果':presetGroups(preset).map(group=>processingGroupLabels[group]||group).join(' + '));apply.append(name,scope,description);apply.onclick=()=>applyClassicPreset(preset);
   const tools=document.createElement('div');tools.className='preset-card-tools';const star=document.createElement('button');star.type='button';star.className='preset-star';const favorite=presetUI.favorites.has(preset.id);star.textContent=favorite?'★':'☆';star.setAttribute('aria-label',(favorite?'取消收藏':'收藏')+preset.name);star.setAttribute('aria-pressed',String(favorite));
   star.onclick=async()=>{star.disabled=true;try{acceptPresetCatalog(await post(`/api/presets/${encodeURIComponent(preset.id)}/favorite`,{favorite:!favorite}));}catch(error){toast(errorMessage(error),true);star.disabled=false;}};tools.append(star);
   if(!preset.builtin){const remove=document.createElement('button');remove.type='button';remove.className='preset-delete';remove.textContent='删除';remove.setAttribute('aria-label','删除自定义预设'+preset.name);remove.onclick=async()=>{if(!confirm(`删除自定义预设“${preset.name}”？已编辑的照片不会变化。`))return;remove.disabled=true;try{acceptPresetCatalog(await api(`/api/presets/${encodeURIComponent(preset.id)}`,{method:'DELETE'}));}catch(error){toast(errorMessage(error),true);remove.disabled=false;}};tools.append(remove);}
@@ -46,24 +55,43 @@ function renderPresetCards(){
  updatePresetStatus();
 }
 async function applyClassicPreset(preset){
- const p=photo();if(presetEditingBlocked())return;saveHistory();setEditingParams(p,preset.params);presetUI.applied.set(presetScopeKey(p),{id:preset.id,name:preset.name,params:clone(preset.params)});renderControls();
- const message=`已对《${p.name}》应用《${preset.name}》，${editScopeLabel(p)}；`;const feedback=toast(message+'正在更新预览。');queuePreview(p.id,0);const seq=state.seq.get(p.id);
- // A later photo, preview request or feedback message owns the interface now.
- const stillCurrent=()=>state.current===p.id&&state.seq.get(p.id)===seq&&$('toasts').firstElementChild===feedback;
- try{await runPreview(p.id);if(stillCurrent())toast(message+'预览已更新，可继续微调。');}catch(error){if(stillCurrent())toast(message+'预览更新失败：'+errorMessage(error),true);}
+ const p=photo();if(presetEditingBlocked())return;const id=p.id,scope=window.PortraitSelection?.isEditing(p)?'local':'global',scopeKey=presetScopeKey(p);let committed=false;
+ presetUI.applying=true;lockEditing(true);presetFeedback(`正在按当前照片应用《${preset.name}》…`,'running',p);
+ try{
+  await flushPhotos([id]);const current=photo(id);if(!current)throw new Error('照片已移除。');
+  const snapshot=clone({params:current.params,strokes:current.strokes||[],spot_repairs:current.spot_repairs||[],local_adjustment:current.local_adjustment??null,...(current.lighting?{lighting:current.lighting,lighting_geometry:current.lighting_geometry??null}:{})});
+  const result=await post(`/api/photos/${id}/preset`,{preset_id:preset.id,scope,expected_version:current.version});
+  if(result.photo?.id!==id)throw new Error('预设服务返回的照片不匹配。');
+  recordHistory(id,snapshot);committed=true;clearPreviewTimer(id);state.dirty.delete(id);state.seq.set(id,(state.seq.get(id)||0)+1);mergePhoto(result.photo);
+  const updated=photo(id),resolved=scope==='local'?updated.local_adjustment?.params:updated.params;if(!resolved)throw new Error('预设没有返回有效的调整参数。');
+  const groups=result.changed_groups||presetGroups(preset),record={id:preset.id,name:preset.name,params:clone(resolved),keys:result.apply_keys||result.applied_keys||presetKeys(preset),groups};
+  presetUI.applied.set(scopeKey,record);const stages=presetUI.groupApplied.get(scopeKey)||{};for(const group of groups)stages[group]=record;presetUI.groupApplied.set(scopeKey,stages);
+  if(groups.length)setAdjustmentStage(groups[0]);
+  if(!['result','compare'].includes(state.view)&&!(state.layout==='dual'&&['result','compare'].includes(state.secondaryView)))setView('result','primary');
+  renderControls();renderLibrary();
+  const summary=result.summary||`${groups.map(group=>processingGroupLabels[group]||group).join('、')}参数已应用`,warnings=[...(result.warnings||[])];
+  presetFeedback(summary+'；正在显示处理结果。','running',updated);const rendered=await runPreview(id);
+  const acne=scope==='local'?rendered?.meta?.local_adjustment?.engine_meta?.acne:rendered?.meta?.acne;
+  if(resolved.acne>0&&acne?.spots_found===false)warnings.push('本次未识别到可修复痘点；可在“更多肤质参数”调整痘点识别，或使用点修。');
+  if(photo(id)?.face_count===0&&groups.includes('skin')&&['smooth','blemishes','even','texture','acne'].some(key=>resolved[key]>0))warnings.push('未检测到人脸，本次修肤没有生效；可使用局部点修。');
+  const message=[summary,...new Set(warnings)].join('；');presetFeedback(message,warnings.length?'warning':'ready',photo(id));toast(`《${preset.name}》${warnings.length?'已处理，请检查提示':'预览已更新'}：${message}`,false);
+ }catch(error){const message=(committed?'参数已应用，但预览未完成：':'预设未应用：')+errorMessage(error);presetFeedback(message,'failed',photo(id));toast(message,true);}
+ finally{presetUI.applying=false;lockEditing(false);}
 }
 function updatePresetStatus(){
- const p=photo();const params=editingParams(p);let base=p&&presetUI.applied.get(presetScopeKey(p));const matched=p&&(presetUI.items.find(item=>item.id===base?.id&&paramsEqual(item.params,params))||presetUI.items.find(item=>paramsEqual(item.params,params)));
- if(matched){base={id:matched.id,name:matched.name,params:matched.params};presetUI.applied.set(presetScopeKey(p),base);}
+ const p=photo();const params=editingParams(p);let base=p&&presetUI.applied.get(presetScopeKey(p));const matched=p&&(appliedPresetMatches(base,params)?presetUI.items.find(item=>item.id===base.id):presetUI.items.find(item=>paramsEqual(item.params,params)));
+ if(matched&&!base){base={id:matched.id,name:matched.name,params:clone(params),keys:presetKeys(matched),groups:presetGroups(matched)};presetUI.applied.set(presetScopeKey(p),base);}
  $('currentPresetName').textContent=!p?'尚未选择照片':matched?(matched.id==='original'&&window.PortraitSelection?.isEditing(p)?'选区未增加调整':matched.name):base?`${base.name} · 已微调`:'手动调整';
  $('currentPresetHint').textContent=!p?'导入照片后选择预设':window.PortraitSelection?.isArmed()?'先拖出矩形选区，再应用预设':params.opacity===0?(window.PortraitSelection?.isEditing(p)?'选区未增加调整，保留全局修片':'当前显示原图效果'):`${editScopeLabel(p)} · 保护笔刷保留`;
- for(const card of document.querySelectorAll('.preset-card')){const active=matched?.id===card.dataset.preset;card.classList.toggle('active',active);const button=card.querySelector('.preset-apply');const recipe=presetUI.items.find(item=>item.id===card.dataset.preset);button.disabled=presetEditingBlocked();button.title=`${recipe?.name||'预设'}：${recipe?.description||'自定义参数'}。${editScopeLabel(p)}。`;button.setAttribute('aria-pressed',String(active));}
+ const stages=p?presetUI.groupApplied.get(presetScopeKey(p))||{}:{};
+ for(const card of document.querySelectorAll('.preset-card')){const active=matched?.id===card.dataset.preset||Object.values(stages).some(record=>record.id===card.dataset.preset&&appliedPresetMatches(record,params));card.classList.toggle('active',active);const button=card.querySelector('.preset-apply');const recipe=presetUI.items.find(item=>item.id===card.dataset.preset);button.disabled=presetEditingBlocked();button.title=`${recipe?.name||'预设'}：${recipe?.description||'自定义参数'}。${editScopeLabel(p)}。`;button.setAttribute('aria-pressed',String(active));}
  for(const id of ['savePresetBtn','originalPresetBtn'])$(id).disabled=presetEditingBlocked();$('presetCompareBtn').disabled=!p||state.locked;
  const selecting=!!window.PortraitSelection?.isSelecting();$('syncBtn').disabled=!p||!state.selected.size||state.locked||selecting;$('undoBatchBtn').disabled=!state.batchUndo||state.locked||selecting;$('batchSelectionCount').textContent=`${state.selected.size} 张已选`;if(state.batchUndo)$('batchTools').open=true;
  $('presetSummary').textContent=`${presetUI.query?'搜索结果 · ':''}${visiblePresets().length} 个预设 · ${p?editScopeLabel(p):'导入照片后应用'}`;
+ const feedback=p&&presetUI.feedback.get(presetScopeKey(p));if($('presetFeedback')){$('presetFeedback').textContent=feedback?.message||'修肤、明暗和色彩可分别选择预设；同类效果替换，其他调整保留。';$('presetFeedback').dataset.state=feedback?.kind||'idle';}
 }
 $('presetSearch').addEventListener('input',event=>{presetUI.query=event.target.value;renderPresetCards();});
-$('originalPresetBtn').onclick=()=>{if(presetEditingBlocked())return;const original=presetUI.items.find(item=>item.id==='original'||item.name==='原图');if(original){applyClassicPreset(original);return;}const p=photo();saveHistory();setEditingParams(p,{...clone(state.boot.defaults),smooth:0,blemishes:0,acne:0,even:0,texture:0,exposure:0,relight:0,warmth:0,saturation:1,opacity:0});presetUI.applied.set(presetScopeKey(p),{id:'original',name:'原图',params:clone(editingParams(p))});renderControls();queuePreview(p.id,0);};
+$('originalPresetBtn').onclick=()=>{if(presetEditingBlocked())return;const original=presetUI.items.find(item=>item.id==='original'||item.name==='原图');if(original){applyClassicPreset(original);return;}const p=photo();saveHistory();setEditingParams(p,{...clone(state.boot.defaults),smooth:0,blemishes:0,acne:0,acne_sensitivity:.5,even:0,texture:0,exposure:0,relight:0,warmth:0,saturation:1,opacity:1});presetUI.applied.delete(presetScopeKey(p));presetUI.groupApplied.delete(presetScopeKey(p));renderControls();queuePreview(p.id,0);};
 const compareButton=$('presetCompareBtn');compareButton.addEventListener('pointerdown',()=>holdBefore(true));compareButton.addEventListener('pointerleave',()=>holdBefore(false));compareButton.addEventListener('keydown',event=>{if(event.key===' '||event.key==='Enter'){event.preventDefault();holdBefore(true);}});compareButton.addEventListener('keyup',()=>holdBefore(false));compareButton.addEventListener('blur',()=>holdBefore(false));
 $('savePresetBtn').onclick=()=>{if(presetEditingBlocked())return;presetUI.snapshot=clone(editingParams());$('presetName').value='';$('presetDescription').value='';$('presetSaveError').hidden=true;$('savePresetDialog').showModal();$('presetName').focus();};
 $('savePresetForm').addEventListener('submit',async event=>{
@@ -90,6 +118,14 @@ async function undoBatchSettings(){
  }catch(error){toast('未撤销：'+errorMessage(error)+'。为避免覆盖后续编辑，本次没有改动照片。',true);}finally{lockEditing(false);if(photo()?.status==='settings_changed')queuePreview(state.current,0);}
 }
 $('syncBtn').onclick=applyBatchSettings;$('undoBatchBtn').onclick=undoBatchSettings;
-window.PortraitPresets={initialize:()=>acceptPresetCatalog(state.boot),refresh:updatePresetStatus};
+function previewQueued(id){if(!presetUI.applying&&id===state.current)presetFeedback('正在更新当前调整…','running',photo(id));}
+function previewCompleted(id,result){
+ if(presetUI.applying||id!==state.current)return;const p=photo(id);if(!p)return;const params=editingParams(p),meta=window.PortraitSelection?.isEditing(p)?result?.meta?.local_adjustment?.engine_meta:result?.meta;let warning='';
+ if(p.face_count===0&&['smooth','blemishes','even','texture','acne'].some(key=>params[key]>0))warning='未检测到人脸，修肤未生效；可使用取样点修。';
+ else if(params.acne>0&&meta?.acne?.spots_found===false)warning='未识别到可修复痘点；可调整“痘点识别”或使用取样点修。';
+ presetFeedback(warning||'当前调整已更新，可用滑动对比检查效果。',warning?'warning':'ready',p);
+}
+function previewFailed(id,error){if(!presetUI.applying&&id===state.current)presetFeedback('预览未完成：'+errorMessage(error),'failed',photo(id));}
+window.PortraitPresets={initialize:()=>acceptPresetCatalog(state.boot),refresh:updatePresetStatus,previewQueued,previewCompleted,previewFailed};
 document.addEventListener('portraitlab-ready',()=>acceptPresetCatalog(state.boot));
 document.addEventListener('portraitlab-edit-state',updatePresetStatus);

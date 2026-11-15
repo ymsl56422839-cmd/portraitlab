@@ -25,7 +25,7 @@ import urllib.request
 import uuid
 
 
-CONTRACT = "canonical-full-resolution-retouch-v1"
+CONTRACT = "canonical-full-resolution-retouch-v2-edit-tools"
 
 
 def require(condition, message):

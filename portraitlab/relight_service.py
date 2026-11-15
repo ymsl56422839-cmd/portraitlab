@@ -284,14 +284,16 @@ class RelightController:
                 if background is None:
                     raise ValueError("未获得人物前景选区，请使用可识别人脸的人像照片。")
                 with self.store.engine_lock:
-                    processed, _ = self.store.engine_module.render_adjustments(
-                        self.store.engine, rgb, snapshot["params"], analysis,
-                        strokes=snapshot.get("strokes", []), local_adjustment=snapshot.get("local_adjustment"))
+                    processed, _ = self.store.lighting.retouch_base(snapshot, rgb, analysis)
                 input_path = self.checked(directory / "input.png")
                 mask_path = self.checked(directory / "foreground.png")
                 self.save_image(input_path, processed, "PNG")
                 foreground = Image.fromarray(np.uint8(np.clip(1 - background, 0, 1) * 255))
                 foreground = foreground.resize((processed.shape[1], processed.shape[0]), Image.Resampling.BILINEAR)
+                from .face_shape import warp_image
+                operations = self.store.shape_layout(snapshot, analysis=analysis)["operations"]
+                if operations:
+                    foreground = Image.fromarray(warp_image(np.asarray(foreground), operations))
                 self.save_image(mask_path, foreground, "PNG")
                 h, w = rgb.shape[:2]
                 edge = job["params"]["long_side"]
@@ -314,7 +316,9 @@ class RelightController:
                               "source_name": snapshot["name"], "source_sha256": snapshot["sha256"],
                               "source_dimensions": [snapshot["width"], snapshot["height"]],
                               "input_edits": {"params": snapshot["params"], "strokes": snapshot.get("strokes", []),
-                                              "local_adjustment": snapshot.get("local_adjustment")},
+                                              "local_adjustment": snapshot.get("local_adjustment"),
+                                              "spot_repairs": snapshot.get("spot_repairs", []),
+                                              "face_shape": snapshot.get("face_shape")},
                               "request": options, "metadata": result.get("metadata", {}),
                               "generated_dimensions": [result.get("width"), result.get("height")], "created_at": self.now()}
                 generated = self.store.add_generated(output_path, snapshot["name"], provenance, input_path)

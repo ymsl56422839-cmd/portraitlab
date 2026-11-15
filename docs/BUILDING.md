@@ -1,5 +1,7 @@
 # 构建 Windows 便携版
 
+> **0.7.0 全模型分享版**：使用 `packaging/v2_build_launcher.py` 与 `packaging/build_v2_share.py`，不是下文的旧版启动入口。先按下文锁定依赖制作两个干净嵌入式运行时，再为 V2 构建提供五个已校验模型、固定 ModelScope 源码、官方 Fixed WebView2、VC app-local 运行库与完整许可证。`build --help` 列出必要路径，`build --plan` 审查白名单，`verify` 校验结果，`archive --github-parts` 生成可合并解压的普通 ZIP。详情见 [0.7.0 便携说明](PORTABLE_0.7.0.md)。以下保留旧版本环境与构建复现记录；旧版的“需要另装 WebView2／VC”不适用于 0.7.0 完整分享包。
+
 构建产物包含原生 `PortraitLab.exe`、WebView2 桌面壳、两个独立的嵌入式 Python 运行时、应用源码和许可证。用户无需安装 Python。目标系统是 Windows 10/11 x64，需要 Microsoft Visual C++ 2015–2022 x64 Runtime 及 Microsoft Edge WebView2 Evergreen Runtime；缺少时程序提供微软官方安装入口。正常运行直接在一个软件窗口内显示操作界面。
 
 下面命令在源码根目录执行，示例把所有构建、临时和缓存文件放到 `F:\Codex\PortraitLab-build`。发行程序本身不限制盘符：默认使用软件旁的 `Data` 和 `Cache`，也支持环境变量和启动参数指定目录。`PORTRAITLAB_STORAGE_ROOT` 是可选的构建或部署边界，设置后会校验写入位置。

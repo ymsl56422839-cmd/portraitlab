@@ -22,8 +22,13 @@ import zipfile
 from webview2 import prepare as prepare_webview2
 
 PROJECT = Path(__file__).resolve().parents[1]
-APPLICATION_VERSION = re.search(r'^__version__ = "([0-9]+\.[0-9]+\.[0-9]+)"',
-    (PROJECT / "portraitlab/__init__.py").read_text(encoding="utf-8"), re.MULTILINE).group(1)
+_version = re.search(r'^__version__ = "((\d+\.\d+\.\d+)(?:-[A-Za-z0-9.-]+)?)"$',
+    (PROJECT / "portraitlab/__init__.py").read_text(encoding="utf-8"), re.MULTILINE)
+if _version is None:
+    raise ValueError("Application version must be x.y.z or x.y.z-prerelease")
+APPLICATION_VERSION = _version.group(1)
+# Windows assembly identities require four numeric fields, even for test builds.
+ASSEMBLY_VERSION = _version.group(2) + ".0"
 PYTHON_VERSION = "3.12.10"
 PYTHON_URL = f"https://www.python.org/ftp/python/{PYTHON_VERSION}/python-{PYTHON_VERSION}-embed-amd64.zip"
 # SHA-256 published in python.org's Sigstore messageSignature.messageDigest.
@@ -210,10 +215,10 @@ def launcher(destination, work):
     manifest = checked(work / "PortraitLab.manifest")
     manifest.write_text('''<?xml version="1.0" encoding="utf-8"?>
 <assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
- <assemblyIdentity version="__APPLICATION_VERSION__.0" name="PortraitLab.Desktop"/>
+ <assemblyIdentity version="__ASSEMBLY_VERSION__" name="PortraitLab.Desktop"/>
  <trustInfo xmlns="urn:schemas-microsoft-com:asm.v3"><security><requestedPrivileges><requestedExecutionLevel level="asInvoker" uiAccess="false"/></requestedPrivileges></security></trustInfo>
  <application xmlns="urn:schemas-microsoft-com:asm.v3"><windowsSettings><longPathAware xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">true</longPathAware><dpiAware xmlns="http://schemas.microsoft.com/SMI/2005/WindowsSettings">true</dpiAware></windowsSettings></application>
-</assembly>'''.replace('__APPLICATION_VERSION__', APPLICATION_VERSION), encoding="utf-8")
+</assembly>'''.replace('__ASSEMBLY_VERSION__', ASSEMBLY_VERSION), encoding="utf-8")
     executable = checked(destination / "PortraitLab.exe")
     args = [str(compiler), "/nologo", "/target:winexe", "/platform:x64", "/optimize+", "/codepage:65001",
             "/out:" + str(executable), "/win32manifest:" + str(manifest),

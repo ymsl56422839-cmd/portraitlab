@@ -41,6 +41,8 @@ from starlette.concurrency import run_in_threadpool
 from . import __version__
 from .presets import BUILTIN_IDS, CATEGORIES, PORTRAIT_GROUPS, MAX_CUSTOM_PRESETS, builtin_presets, custom_payload, custom_record
 from .gpu_service import GPUCompositor, validate_device
+from .spot_repair import validate_repairs
+from .face_shape import validate_face_shape, build_operations, warp_image
 
 APP_ROOT = Path(__file__).resolve().parents[1]
 MAX_FILE_BYTES = 100 * 1024 * 1024
@@ -49,7 +51,7 @@ MAX_PRESET_REQUEST_BYTES = 64 * 1024
 MAX_PIXELS = 80_000_000
 MAX_FILES = 50
 PREVIEW_SIDE = 1600
-PREVIEW_CONTRACT = "canonical-full-resolution-area-png-v1"
+PREVIEW_CONTRACT = "canonical-full-resolution-area-png-v3-edit-tools"
 COOKIE = "portraitlab_session"
 SOURCE_FORMATS = {"JPEG", "PNG", "TIFF", "WEBP"}
 SOURCE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".tif", ".tiff", ".webp"}
@@ -291,6 +293,8 @@ class PortraitStore:
         try:
             for photo in self.state["photos"].values():
                 photo["local_adjustment"] = self.engine_module.validate_local_adjustment(photo.get("local_adjustment"))
+                photo["spot_repairs"] = validate_repairs(photo.get("spot_repairs"))
+                photo["face_shape"] = validate_face_shape(photo.get("face_shape"))
                 if photo.get("preview_path") and photo.get("preview_contract") != PREVIEW_CONTRACT:
                     # The next selection refreshes legacy JPEG/scale-dependent
                     # previews before the user starts another retouching edit.
@@ -414,7 +418,7 @@ class PortraitStore:
 
     def public_photo(self, photo: dict) -> dict:
         from .lighting import validate_lighting
-        out = {k: photo.get(k) for k in ("id", "name", "width", "height", "face_count", "status", "params", "warnings", "version", "strokes", "generation", "local_adjustment")}
+        out = {k: photo.get(k) for k in ("id", "name", "width", "height", "face_count", "status", "params", "warnings", "version", "strokes", "generation", "local_adjustment", "spot_repairs", "face_shape", "shape_geometry")}
         out["lighting"] = validate_lighting(photo.get("lighting"))
         out["lighting_geometry"] = photo.get("lighting_geometry")
         out["preview_contract"] = photo.get("preview_contract")
@@ -437,6 +441,52 @@ class PortraitStore:
             return json_value({"presets": builtin_presets() + list(self.state["presets"].values()),
                                "categories": list(CATEGORIES), "portrait_groups": list(PORTRAIT_GROUPS),
                                "favorites": list(self.state["preset_favorites"])})
+
+    def apply_preset(self, photo_id: str, data: dict) -> dict:
+        """Resolve photo-aware operations, then atomically apply to one scope."""
+        from .preset_pipeline import resolve_preset
+        if (set(data) != {"preset_id", "scope", "expected_version"}
+                or not isinstance(data["preset_id"], str)
+                or data["scope"] not in ("global", "local")
+                or type(data["expected_version"]) is not int):
+            raise ValueError("预设请求需要 preset_id、scope 和 expected_version。")
+        with self.lock:
+            photo = self.photo(photo_id)
+            if photo["version"] != data["expected_version"]:
+                raise HTTPException(409, "照片已有更新，请等待预览完成后重新应用预设。")
+            preset = next((p for p in self.preset_catalog()["presets"] if p["id"] == data["preset_id"]), None)
+            if preset is None:
+                raise HTTPException(404, "未找到这个预设。")
+            snapshot = json.loads(json.dumps(photo))
+        local = self.engine_module.validate_local_adjustment(snapshot.get("local_adjustment"))
+        if data["scope"] == "local" and local is None:
+            raise ValueError("请先框选要调整的区域。")
+        rgb = self.rgb(snapshot)
+        analysis = self.analysis(snapshot, rgb)
+        mask = None
+        if data["scope"] == "local":
+            rgb, _ = self.lighting.retouch_base({**snapshot, "local_adjustment": None, "spot_repairs": [], "face_shape": None}, rgb, analysis)
+            mask = local["rect"]
+        current = snapshot["params"] if data["scope"] == "global" else local["params"]
+        resolved = resolve_preset(preset, current, rgb, analysis, local_mask=mask)
+        with self.lock:
+            photo = self.photo(photo_id)
+            if photo["version"] != snapshot["version"]:
+                raise HTTPException(409, "预设分析期间照片已有更新，本次未覆盖后续调整。")
+            previous = dict(photo)
+            if data["scope"] == "local":
+                photo["local_adjustment"] = {**local, "params": self.params(resolved["params"])}
+            else:
+                photo["params"] = self.params(resolved["params"])
+            photo.update(version=photo["version"] + 1, status="settings_changed")
+            try:
+                self.persist()
+            except Exception:
+                photo.clear()
+                photo.update(previous)
+                raise
+            return json_value({**resolved, "apply_keys": resolved.get("apply_keys", resolved.get("applied_keys", [])),
+                               "photo": self.public_photo(photo), "preset": {"id": preset["id"], "name": preset["name"]}})
 
     def save_preset(self, data: dict) -> dict:
         cleaned = custom_payload(data)
@@ -500,7 +550,7 @@ class PortraitStore:
         write_image(original_preview, thumb, "JPEG", replace=False)
         os.chmod(raw_path, stat.S_IREAD)
         photo = {"id": photo_id, "name": name, "width": image.width, "height": image.height,
-                 "face_count": None, "status": "imported", "params": dict(self.defaults), "strokes": [], "local_adjustment": None,
+                 "face_count": None, "status": "imported", "params": dict(self.defaults), "strokes": [], "local_adjustment": None, "spot_repairs": [], "face_shape": validate_face_shape(None),
                  "warnings": color["warnings"], "source_warnings": color["warnings"], "color": color,
                  "original_path": str(raw_path), "source_path": str(normalized), "original_preview_path": str(original_preview),
                  "sha256": sha, "version": 0, "created_at": now()}
@@ -600,6 +650,15 @@ class PortraitStore:
         return [{"name": p.name, "size": p.stat().st_size, "mtime_ns": p.stat().st_mtime_ns}
                 for p in sorted(self.folders["models"].iterdir()) if p.is_file()]
 
+    def shape_layout(self, snapshot: dict, shape=None, *, analysis=None) -> dict:
+        """Pure layout in normalized source coordinates; no edit state is saved."""
+        clean = validate_face_shape(snapshot.get("face_shape") if shape is None else shape)
+        if analysis is None:
+            analysis = self.analysis(snapshot, self.rgb(snapshot))
+        operations, meta = build_operations(clean, analysis, snapshot["width"], snapshot["height"])
+        return json_value({**meta, "operations": operations, "face_shape": clean,
+                           "photo_id": snapshot["id"], "version": snapshot["version"]})
+
     def update_params(self, ids: list[str], params: dict) -> list[dict]:
         validated = self.params(params)
         with self.lock:
@@ -683,6 +742,11 @@ class PortraitStore:
                 del base, full
                 mask = self.engine_module.mask_for(analysis, output.shape[:2], snapshot["strokes"], region=snapshot["params"].get("region", "face"))
                 local_mask = self.local_preview_mask(snapshot, analysis, output.shape[:2])
+                shape_geometry = self.shape_layout(snapshot, analysis=analysis)
+                if shape_geometry["operations"]:
+                    mask = warp_image(mask, shape_geometry["operations"])
+                    if local_mask is not None:
+                        local_mask = warp_image(local_mask, shape_geometry["operations"])
                 output, lighting_meta = self.lighting.render(snapshot, output)
                 meta["lighting"] = lighting_meta
                 preview_format, preview_extension = "PNG", "png"
@@ -702,6 +766,7 @@ class PortraitStore:
                     current.update(preview_path=str(preview_path), mask_path=str(mask_path), preview_version=requested_version,
                                    local_mask_path=str(local_mask_path) if local_mask_path is not None else None,
                                    preview_contract=PREVIEW_CONTRACT,
+                                   shape_geometry=shape_geometry,
                                    status="ready", face_count=int(analysis.get("face_count", 0)), warnings=warnings,
                                    last_meta=json_value(meta))
                     self.persist()
@@ -808,6 +873,8 @@ class PortraitStore:
                             "output_color_space": "sRGB", "source_color": snapshot.get("color"),
                             "params": snapshot["params"], "strokes": snapshot.get("strokes", []),
                             "local_adjustment": snapshot.get("local_adjustment"),
+                            "spot_repairs": snapshot.get("spot_repairs", []),
+                            "face_shape": snapshot.get("face_shape"),
                             "lighting": snapshot.get("lighting"), "lighting_geometry": snapshot.get("lighting_geometry"),
                             "processing_device": meta.get("processing_device"),
                             "models": analysis.get("models"), "engine_meta": meta,
@@ -951,6 +1018,8 @@ def create_app(data_dir: Path | None = None, port: int = 18765) -> FastAPI:
         response = JSONResponse(json_value({"version": __version__, "token": token, "defaults": store.defaults,
                                            "local_defaults": store.engine_module.LOCAL_DEFAULT_PARAMS,
                                            "capabilities": {"local_adjustments": True, "canonical_preview": True,
+                                                            "preset_pipeline": 2, "spot_repairs": True,
+                                                            "repair_brush": True, "face_shape": True,
                                                             "canonical_preview_contract": PREVIEW_CONTRACT},
                                            "presets": catalog["presets"], "preset_categories": catalog["categories"],
                                            "preset_portrait_groups": catalog["portrait_groups"],
@@ -984,6 +1053,10 @@ def create_app(data_dir: Path | None = None, port: int = 18765) -> FastAPI:
     @app.post("/api/presets/{preset_id}/favorite")
     async def presets_favorite(preset_id: str, request: Request):
         return store.favorite_preset(preset_id, await body(request))
+
+    @app.post("/api/photos/{photo_id}/preset")
+    async def apply_photo_preset(photo_id: str, request: Request):
+        return await run_in_threadpool(store.apply_preset, photo_id, await body(request))
 
     @app.get("/api/photos")
     async def photos():
@@ -1060,6 +1133,22 @@ def create_app(data_dir: Path | None = None, port: int = 18765) -> FastAPI:
                 raise HTTPException(403, "无效预览位置。")
         return FileResponse(path, media_type="image/png" if path.suffix.lower() == ".png" else "image/jpeg")
 
+    @app.get("/api/photos/{photo_id}/face-layout")
+    async def face_layout(photo_id: str):
+        with store.lock:
+            snapshot = json.loads(json.dumps(store.photo(photo_id)))
+        return await run_in_threadpool(store.shape_layout, snapshot)
+
+    @app.post("/api/photos/{photo_id}/shape-layout")
+    async def shape_layout(photo_id: str, request: Request):
+        data = await body(request)
+        if set(data) != {"face_shape"}:
+            raise ValueError("塑形布局请求必须仅包含 face_shape。")
+        clean = validate_face_shape(data["face_shape"])
+        with store.lock:
+            snapshot = json.loads(json.dumps(store.photo(photo_id)))
+        return await run_in_threadpool(store.shape_layout, snapshot, clean)
+
     @app.post("/api/photos/{photo_id}/preview")
     async def preview(photo_id: str, request: Request):
         data = await body(request)
@@ -1068,6 +1157,8 @@ def create_app(data_dir: Path | None = None, port: int = 18765) -> FastAPI:
             params = store.params(data.get("params", photo["params"]))
             strokes = validate_strokes(data["strokes"]) if "strokes" in data else photo["strokes"]
             local_adjustment = store.engine_module.validate_local_adjustment(data.get("local_adjustment", photo.get("local_adjustment")))
+            spot_repairs = validate_repairs(data.get("spot_repairs", photo.get("spot_repairs")))
+            face_shape = validate_face_shape(data.get("face_shape", photo.get("face_shape")))
             raw_lighting = data.get("lighting", photo.get("lighting"))
             if "lighting_geometry" in data:
                 lighting, geometry = store.lighting.validate_edit(photo, raw_lighting, data["lighting_geometry"])
@@ -1076,7 +1167,7 @@ def create_app(data_dir: Path | None = None, port: int = 18765) -> FastAPI:
             # Validate the entire edit before persisting either part of it.
             previous = dict(photo)
             photo.update(params=params, strokes=strokes, lighting=lighting, lighting_geometry=geometry,
-                         local_adjustment=local_adjustment,
+                         local_adjustment=local_adjustment, spot_repairs=spot_repairs, face_shape=face_shape,
                          version=photo["version"] + 1, status="settings_changed")
             version = photo["version"]
             try:

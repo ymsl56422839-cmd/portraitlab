@@ -163,7 +163,7 @@
   if(editor.previewPending){await new Promise(resolve=>requestAnimationFrame(resolve));if(editor.previewPending)return false;}
   if(editor.previewError)return false;
   if(!dirty())return true;const p=photo();if(editor.saving||state.locked||!editor.prepared||editor.prepared.photo_id!==p?.id)return false;
-  const previous=copy({params:p.params,strokes:p.strokes||[],local_adjustment:p.local_adjustment??null,lighting:p.lighting||editor.status?.defaults||fallbackConfig,lighting_geometry:p.lighting_geometry||null});editor.saving=true;editor.error=null;renderStatus();
+  const previous=copy({params:p.params,strokes:p.strokes||[],spot_repairs:p.spot_repairs||[],face_shape:p.face_shape||{faces:[],strokes:[]},local_adjustment:p.local_adjustment??null,lighting:p.lighting||editor.status?.defaults||fallbackConfig,lighting_geometry:p.lighting_geometry||null});editor.saving=true;editor.error=null;renderStatus();
   try{const result=await post(`/api/photos/${p.id}/lighting`,{lighting:copy(editor.draft),expected_version:editor.prepared.version,geometry_key:editor.prepared.geometry_key});recordHistory(p.id,previous);mergePhoto(result.photo);editor.saved=fromPhoto(result.photo);editor.draft=copy(editor.saved);editor.prepared.version=result.photo.version;displayPhoto();renderLibrary();renderControls();renderLights();feedback(`已为《${p.name}》保留布光，可撤销或继续编辑。`);const banner=toast(`已为《${p.name}》保留布光调整，原文件不变。`);banner.dataset.lightingPhoto=p.id;banner.dataset.lightingState='saved';return true;}
   catch(error){feedback('保留失败：'+errorMessage(error),true);throw error;}finally{editor.saving=false;renderStatus();refreshPreview();}
  }

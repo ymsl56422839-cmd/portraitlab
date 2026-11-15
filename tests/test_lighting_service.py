@@ -503,3 +503,69 @@ def test_plain_and_local_previews_share_full_resolution_grid_and_png_export(api,
     assert job['status'] == 'completed', job
     np.testing.assert_array_equal(np.asarray(Image.open(job['items'][0]['path'])), preview)
     assert calls == [source.shape, source.shape]
+
+
+@pytest.mark.parametrize('model_failure', [None, '模型校验失败：selfie_multiclass，SHA256 与固定版本不符'])
+def test_cached_no_face_analysis_loads_segmentation_after_restart(configured, monkeypatch, model_failure):
+    class LazyNoFaceEngine(FakeEngine):
+        def __init__(self, models_dir):
+            self._lock = threading.RLock()
+            self._parts_adapter = None
+            self.analyze_calls = self.load_calls = self.segment_calls = 0
+            self.model_failure = None
+
+        def _ensure_models(self):
+            if self._parts_adapter is not None:
+                return
+            self.load_calls += 1
+            if self.model_failure:
+                raise RuntimeError(self.model_failure)
+            owner = self
+            class PartsAdapter:
+                def predict(self, rgb):
+                    owner.segment_calls += 1
+                    h, w = rgb.shape[:2]
+                    background = np.zeros((h, w), np.float32)
+                    background[:, :w // 2] = 1
+                    return {'background': background}
+            self._parts_adapter = PartsAdapter()
+
+        def analyze(self, rgb):
+            self.analyze_calls += 1
+            self._ensure_models()
+            result = super().analyze(rgb)
+            result['parts'] = {}  # Real Engine.analyze skips segmentation when faces is empty.
+            return result
+
+    monkeypatch.setattr(engine, 'Engine', LazyNoFaceEngine)
+    first, store = open_client(configured / 'data')
+    with first:
+        photo, _ = import_photo(first)
+        response = first.post(f"/api/photos/{photo['id']}/preview", json={})
+        assert response.status_code == 200, response.text
+        assert response.json()['photo']['face_count'] == 0
+        assert store.engine.analyze_calls == store.engine.load_calls == 1
+        assert store.engine.segment_calls == 0
+        assert (store.folders['cache'] / (photo['id'] + '.analysis.npz')).is_file()
+
+    second, reopened = open_client(configured / 'data')
+    with second:
+        assert reopened.engine._parts_adapter is None
+        reopened.engine.model_failure = model_failure
+        cached = reopened.analysis(reopened.photo(photo['id']), reopened.rgb(reopened.photo(photo['id'])))
+        assert cached['face_count'] == 0 and cached['parts'] == {}
+        assert reopened.engine.analyze_calls == reopened.engine.load_calls == 0
+        response = second.post('/api/lighting/prepare', json={'photo_id': photo['id'], 'device': 'cpu'})
+        assert response.status_code == 200, response.text
+        job = wait_job(second, response.json()['job']['id'])
+        assert reopened.engine.analyze_calls == 0  # Reuse the valid disk analysis; do not rerun face detection.
+        assert reopened.engine.load_calls == 1, job
+        if model_failure:
+            assert job['status'] == 'failed'
+            assert job['error'] == model_failure  # Keep the real missing/corrupt-model diagnostic.
+            assert reopened.engine.segment_calls == 0
+        else:
+            assert job['status'] == 'completed', job
+            mask = np.asarray(Image.open(io.BytesIO(second.get(job['result']['mask_url']).content)))
+            assert np.all(mask[:, :32] == 0) and np.all(mask[:, 32:] == 255)
+            assert reopened.engine.segment_calls == 1

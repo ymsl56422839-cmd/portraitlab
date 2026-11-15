@@ -1,0 +1,31 @@
+PortraitLab manual donor spot repair
+SPDX-License-Identifier: AGPL-3.0-only
+
+Based on RapidRetouch Patch, Copyright Chris Cork.
+Repository: https://github.com/crispin81/RapidRetouch
+Pinned commit: d6f9a848fa5ba5628239b568777c5be3e7851a8e
+Source: engine/src/rapidretouch_engine/tools/patch.py
+Reviewed upstream file SHA-256:
+fd6d51b6b839abccea1c9fcc49f12c47562e4bcf9033f8ef4ab5357abe32ae8e
+https://github.com/crispin81/RapidRetouch/blob/d6f9a848fa5ba5628239b568777c5be3e7851a8e/engine/src/rapidretouch_engine/tools/patch.py
+
+The AGPL-3.0-only license is reproduced in the project-root LICENSE.
+Existing RapidRetouch colour/filter helpers retain their upstream attribution.
+No new model weights or other third-party libraries are included by this module.
+
+PortraitLab adaptation in portraitlab/spot_repair.py:
+- Explicit normalised target and donor points instead of a lasso and offset.
+- Target low-frequency tone from surrounding pixels; real donor texture ratio
+  in linear light, following the upstream Patch approach.
+- Strict finite circular support with inward feather, exact unchanged exterior.
+- Immutable input donor samples and sequential target compositing for replay.
+- Bilinear subpixel donor sampling; out-of-image donor pixels are not applied.
+- Bounded tone thumbnails, tiled full-resolution texture, parameter validation,
+  zero-strength/same-source identity, no-op and edge diagnostics.
+- Stabilised texture ratio for very dark/black donor pixels.
+
+This is an adapted local healing algorithm, not an OpenCV inpainting model,
+not an automatic blemish detector and not generative facial reconstruction.
+User selection determines which local features are replaced. Quality depends
+on suitable donor texture and target selection; no identity-preservation or
+general image-quality superiority claim is made by this integration.

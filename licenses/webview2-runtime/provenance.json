@@ -1,0 +1,11 @@
+{
+  "reviewed_on": "2026-11-15",
+  "runtime_version": "157.0.4341.60",
+  "platform": "x64",
+  "runtime_archive_sha256": "1bad3df802a4c21f6b271cf3cd640912056291e3915b86fa7577a18899f761b9",
+  "license_api_url": "https://developer.microsoft.com/microsoft-edge/api/eula/webview2?locale=en-us&fixed=true",
+  "license_field": "fixedHtml",
+  "license_html_sha256": "996dd7a1e83e348647405ac2dcc10e70ed7fd2ca9be986a7c9e2a6ddb2af831a",
+  "license_text_note": "Plain text extraction supplied for the first-run license dialog; original returned HTML is preserved.",
+  "distribution_documentation": "https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/distribution"
+}

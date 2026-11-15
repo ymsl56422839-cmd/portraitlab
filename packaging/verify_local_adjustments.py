@@ -31,7 +31,7 @@ _helper = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_helper)
 Service, require, sha, contained = _helper.Service, _helper.require, _helper.sha, _helper.contained
 
-PREVIEW_CONTRACT = "canonical-full-resolution-area-png-v1"
+PREVIEW_CONTRACT = "canonical-full-resolution-area-png-v3-edit-tools"
 
 
 def checked_output(path, root):

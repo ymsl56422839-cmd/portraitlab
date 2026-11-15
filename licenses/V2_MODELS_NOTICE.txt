@@ -1,0 +1,92 @@
+PortraitLab / 照影 0.7.0 — bundled model notices
+Reviewed: 2026-11-15
+
+The five model files below are distributed unmodified, separately from the
+AGPL-3.0-only application code. Model licenses do not relicense the application,
+and the application license does not replace upstream model or runtime terms.
+No user photograph, evaluation crop or private session data is part of this
+model bundle. This notice summarizes provenance; the complete original license
+texts and model cards accompany it and control their respective components.
+
+1. Google MediaPipe Face Landmarker
+   File: Data/models/analysis/face_landmarker/face_landmarker.task
+   Source: https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task
+   SHA256: 64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff
+   Model license: Apache License, Version 2.0.
+   Attribution: Google; authors are identified in the enclosed BlazeFace,
+   Face Mesh V2 and Blendshape V2 model cards.
+   Role: face detection / landmarks. It is not a skin-repair model.
+
+2. Google MediaPipe Selfie Multiclass Segmentation 256x256
+   File: Data/models/analysis/selfie_multiclass/selfie_multiclass_256x256.tflite
+   Source: https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_multiclass_256x256/float32/1/selfie_multiclass_256x256.tflite
+   SHA256: c6748b1253a99067ef71f7e26ca71096cd449baefa8f101900ea23016507e0e0
+   Model license: Apache License, Version 2.0.
+   Attribution: Adel Ahmadyan, Google, as identified in the model card.
+   Role: coarse background / hair / skin / clothing / accessory segmentation.
+
+   Independent license evidence for 1 and 2:
+   Google's official task-page tables directly link the enclosed model cards;
+   each card states "LICENSED UNDER Apache License, Version 2.0" on page 1.
+   The official table's latest model downloads were SHA256 checked and match
+   the fixed version-1 files above byte for byte. This conclusion is based on
+   model cards and artifact matching, not the documentation footer's code-
+   sample license. See mediapipe/provenance.json and mediapipe/Apache-2.0.txt.
+
+3. ModelScope / Alibaba Skin Retouching
+   Model: damo/cv_unet_skin_retouching_torch
+   Revision: 30f890aab89b787aae93c3f396dbf32714bd950e
+   File: Data/models/neural/joint_20210926.pth
+   Size: 227618450 bytes
+   SHA256: c9e1388b19d9334c90db08308c86de208f535920ee381ae8a9cb63484a78351a
+   Role: blemish detection and neural local repair.
+
+   File: Data/models/neural/pytorch_model.pt
+   Size: 53646276 bytes
+   SHA256: 760d0c0b95c4e0a692165677fe2b82dbdf8fbbd4a3780ca966599c627b082993
+   Role: learned skin-evening blend layer.
+
+   Model license: Apache License, Version 2.0, explicitly declared in the
+   official model card fetched at the same fixed revision. Exact download
+   URLs, hashes and the original card appear in modelscope/provenance.json
+   and modelscope/MODEL-CARD.md.
+   Network implementation: https://github.com/modelscope/modelscope
+   Commit: 34844f9977a33f541cb5d8959c40a57cd6155b3b
+   Code license: Apache-2.0; complete text in modelscope/Apache-2.0.txt.
+   Original source headers are retained. The required network modules are
+   vendored; PortraitLab adds its own explicit candidate confirmation,
+   cropped inference, masks, history and composition. Weights are unchanged.
+   Research citation: Lei et al., "ABPN: Adaptive Blend Pyramid Network for
+   Real-Time Local Retouching of Ultra High-Resolution Photo", CVPR 2022.
+   This software is not an official ModelScope or Alibaba release.
+
+4. Depth Anything V2 Small
+   Source: https://huggingface.co/depth-anything/Depth-Anything-V2-Small
+   Revision: 03876f8651c73a60fe4c2c48294e09fcb6838fcf
+   File: Data/models/analysis/lighting/depth_anything_v2_vits.pth
+   Size: 99218434 bytes
+   SHA256: 715fade13be8f229f8a70cc02066f656f2423a59effd0579197bbf57860e1378
+   Model and code license: Apache License, Version 2.0.
+   Code: https://github.com/DepthAnything/Depth-Anything-V2
+   Commit: a561b849ebae10a6f5ef49e26c83cbbcd36c71bf
+   Attribution: Depth Anything V2 authors and contributors; original code
+   attribution and adaptation notices are retained in the vendored tree.
+   Role: relative depth estimation, not full inverse rendering or a physical
+   reconstruction. Only Small is bundled. Larger variants have different
+   terms and are not licensed by this notice.
+   Evidence: lighting-manifest.json and Depth-Anything-V2-Apache-2.0.txt.
+
+Not bundled in the V2 sharing package:
+IC-Light / Stable Diffusion / Realistic Vision / BRIA / LBM / RetouchFormer /
+Marigold / AdaInt weights, research datasets, and user photographs. Historical
+source notices for earlier optional integrations do not mean those weights
+are part of this release. Ordinary presets are application parameter recipes,
+not additional neural models or independently validated quality benchmarks.
+
+Redistribution:
+Keep upstream licenses, author notices, model cards and provenance with the
+models. Mark your modifications if you alter upstream artifacts. Do not claim
+upstream endorsement. Python, PyTorch, CUDA/cuDNN, Microsoft VC and WebView2
+retain independent terms found elsewhere under Licenses. The GPU drivers and
+Windows operating system are not bundled. Corresponding application source
+and build scripts are supplied under AGPL-3.0-only through the source release.

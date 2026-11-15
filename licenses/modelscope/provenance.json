@@ -1,0 +1,81 @@
+{
+  "reviewed_on": "2026-11-15",
+  "model": "damo/cv_unet_skin_retouching_torch",
+  "model_revision": "30f890aab89b787aae93c3f396dbf32714bd950e",
+  "code_repository": "https://github.com/modelscope/modelscope",
+  "code_revision": "34844f9977a33f541cb5d8959c40a57cd6155b3b",
+  "weights_license": "Apache-2.0",
+  "code_license": "Apache-2.0",
+  "model_card": {
+    "file": "MODEL-CARD.md",
+    "url": "https://modelscope.cn/api/v1/models/damo/cv_unet_skin_retouching_torch/repo?Revision=30f890aab89b787aae93c3f396dbf32714bd950e&FilePath=README.md",
+    "sha256": "f36f1d5d9b2b7c06bf1b60e63e87ac5bf69b0d1f371c53d59949ea281c111d54",
+    "license_evidence": "YAML front matter: license: Apache License 2.0"
+  },
+  "artifacts": [
+    {
+      "kind": "source",
+      "url": "https://raw.githubusercontent.com/modelscope/modelscope/34844f9977a33f541cb5d8959c40a57cd6155b3b/LICENSE",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "file": "LICENSE"
+    },
+    {
+      "kind": "source",
+      "url": "https://raw.githubusercontent.com/modelscope/modelscope/34844f9977a33f541cb5d8959c40a57cd6155b3b/modelscope/models/cv/skin_retouching/unet_deploy.py",
+      "sha256": "5fa3b9a4ba599908025057d64fe3b44ad71f6bb8614c8d13618a4cd5bbe7936b",
+      "file": "modelscope/models/cv/skin_retouching/unet_deploy.py"
+    },
+    {
+      "kind": "source",
+      "url": "https://raw.githubusercontent.com/modelscope/modelscope/34844f9977a33f541cb5d8959c40a57cd6155b3b/modelscope/models/cv/skin_retouching/detection_model/detection_unet_in.py",
+      "sha256": "e3b02ff03941aabc967c0fa66c39a00a56e84fbbe98f15c52de6bdf5555a9168",
+      "file": "modelscope/models/cv/skin_retouching/detection_model/detection_unet_in.py"
+    },
+    {
+      "kind": "source",
+      "url": "https://raw.githubusercontent.com/modelscope/modelscope/34844f9977a33f541cb5d8959c40a57cd6155b3b/modelscope/models/cv/skin_retouching/inpainting_model/inpainting_unet.py",
+      "sha256": "bc151c88dabac96ef2a17f31c6dc979688d65c4f0f0f8dde73e1c2e845f462dd",
+      "file": "modelscope/models/cv/skin_retouching/inpainting_model/inpainting_unet.py"
+    },
+    {
+      "kind": "source",
+      "url": "https://raw.githubusercontent.com/modelscope/modelscope/34844f9977a33f541cb5d8959c40a57cd6155b3b/modelscope/models/cv/skin_retouching/utils.py",
+      "sha256": "f075ac6d4997370d80b10d946c0aebcecbc094bdbd75072236b3d8b905403d88",
+      "file": "modelscope/models/cv/skin_retouching/utils.py"
+    },
+    {
+      "kind": "source",
+      "url": "https://raw.githubusercontent.com/modelscope/modelscope/34844f9977a33f541cb5d8959c40a57cd6155b3b/modelscope/models/cv/skin_retouching/weights_init.py",
+      "sha256": "5feb5da62e7a97cca5e60488c96d76c48074ca7521526dca0a91498880381e5b",
+      "file": "modelscope/models/cv/skin_retouching/weights_init.py"
+    },
+    {
+      "kind": "source",
+      "url": "https://raw.githubusercontent.com/modelscope/modelscope/34844f9977a33f541cb5d8959c40a57cd6155b3b/modelscope/models/cv/skin_retouching/detection_model/detection_module.py",
+      "sha256": "23fce16544465ef41232ce652fecc95a71db3bb81af575d4aefc472a4e45a2ec",
+      "file": "modelscope/models/cv/skin_retouching/detection_model/detection_module.py"
+    },
+    {
+      "kind": "source",
+      "url": "https://raw.githubusercontent.com/modelscope/modelscope/34844f9977a33f541cb5d8959c40a57cd6155b3b/modelscope/models/cv/skin_retouching/inpainting_model/gconv.py",
+      "sha256": "fca8ece60d31dabf3d6eda186657efd72328f94aafe7b11fe130259ee873bd20",
+      "file": "modelscope/models/cv/skin_retouching/inpainting_model/gconv.py"
+    },
+    {
+      "kind": "weight",
+      "url": "https://modelscope.cn/api/v1/models/damo/cv_unet_skin_retouching_torch/repo?Revision=30f890aab89b787aae93c3f396dbf32714bd950e&FilePath=joint_20210926.pth",
+      "revision": "30f890aab89b787aae93c3f396dbf32714bd950e",
+      "sha256": "c9e1388b19d9334c90db08308c86de208f535920ee381ae8a9cb63484a78351a",
+      "bytes": 227618450,
+      "file": "joint_20210926.pth"
+    },
+    {
+      "kind": "weight",
+      "url": "https://modelscope.cn/api/v1/models/damo/cv_unet_skin_retouching_torch/repo?Revision=30f890aab89b787aae93c3f396dbf32714bd950e&FilePath=pytorch_model.pt",
+      "revision": "30f890aab89b787aae93c3f396dbf32714bd950e",
+      "sha256": "760d0c0b95c4e0a692165677fe2b82dbdf8fbbd4a3780ca966599c627b082993",
+      "bytes": 53646276,
+      "file": "pytorch_model.pt"
+    }
+  ]
+}

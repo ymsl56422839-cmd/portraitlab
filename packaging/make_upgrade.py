@@ -1,4 +1,4 @@
-"""Build a model-free application update for an existing 0.2/0.3/0.4 portable folder.
+"""Build a model-free cumulative update for an existing 0.4/0.5 portable folder.
 
 ZIP entries start at the application root; runtime, AI, Data and Cache are never
 included. The recipient closes PortraitLab before extracting into its folder.
@@ -25,6 +25,18 @@ ROOT_FILES = (
 )
 REQUIRED = tuple(name for name in ROOT_FILES if name not in ('NOTICE', 'MODEL_LICENSES.md', 'REPRODUCING.md'))
 EXCLUDED = {'runtime', 'ai', 'data', 'cache'}
+BASE_VERSIONS = ['0.4.0', '0.4.1', '0.5.0']
+# Current application assets are source text and SVG. Do not accidentally ship
+# a local photo, analysis dump, model, state file or credential in app/Licenses.
+PRIVATE_SUFFIXES = {'.jpg', '.jpeg', '.png', '.webp', '.tif', '.tiff', '.heic',
+                    '.raw', '.cr2', '.cr3', '.nef', '.arw', '.dng', '.bmp',
+                    '.npy', '.npz', '.safetensors', '.ckpt', '.pt', '.pth',
+                    '.onnx', '.tflite', '.task', '.log', '.tmp', '.part',
+                    '.zip', '.sqlite', '.sqlite3', '.db', '.pyc', '.pyo', '.pfx', '.pem', '.key'}
+PRIVATE_NAMES = {'.env', 'state.json', 'launcher-status.json', 'credentials.json',
+                 'token.json', 'tokens.json', 'cookies.json'}
+PRIVATE_PARTS = {'.git', '.local', '.venv', '__pycache__', '.pytest_cache',
+                 'uploads', 'sessions', '.cache'}
 
 
 def member_name(path, package):
@@ -36,6 +48,10 @@ def member_name(path, package):
         raise ValueError('Disallowed upgrade member: ' + name)
     if path.resolve() != path.absolute():
         raise ValueError('Upgrade members must not traverse symlinks or directory junctions: ' + name)
+    lowered = {part.lower() for part in parts}
+    if (path.suffix.lower() in PRIVATE_SUFFIXES or path.name.lower() in PRIVATE_NAMES
+            or path.name.lower().startswith('.env.') or lowered & PRIVATE_PARTS):
+        raise ValueError('Refusing private, generated, model or photo content in upgrade: ' + name)
     return name
 
 
@@ -74,22 +90,29 @@ def main():
     for component in webview['files']:
         if inventory.get(component['file']) != {'bytes': component['bytes'], 'sha256': component['sha256']}:
             raise ValueError('WebView2 files differ from their verified manifest: ' + component['file'])
-    upgrade = {'version': version, 'base_versions': ['0.2.0', '0.3.0', '0.4.0'], 'platform': build['platform'],
+    upgrade = {'version': version, 'base_versions': BASE_VERSIONS, 'platform': build['platform'],
+               'release_channel': 'development-test' if '-' in version else 'stable', 'cumulative_update': True,
                'layout': 'application-root', 'preserved_directories': ['runtime', 'AI', 'Data', 'Cache'],
                'model_weights_included': False, 'files': inventory}
     readme = (
-        f'照影 / PortraitLab {version} 小升级包\n\n'
-        '适用：已完整解压并可运行的 PortraitLab 0.4.0 Windows x64 软件目录；0.2.0 / 0.3.0 也列入兼容运行时基线。\n'
-        '已有 0.4.0 完整包只需本补丁；新用户只需 0.4.0 完整包加本补丁，无需重新下载大运行时包。\n\n'
-        '本次更新：矩形局部调整；通用、长者人像、成人人像、少年人像四类 52 个预设；\n'
-        '独立去痘强度；更醒目的模型下载与设备入口；鼠标悬停图像视窗时按 V 轮换原图、滑动对比、处理结果。\n'
-        '去痘修复检测到的面部独立痘点，可能漏检或误判；可先框选，并用保护笔刷保留痣、雀斑与妆面。\n'
-        '分类由用户选择，不自动识别年龄；长者方案默认不磨皮。批量只同步全局参数，保留各张局部与笔刷。\n\n'
+        f'照影 / PortraitLab {version} 累积测试补丁\n\n'
+        '适用：已完整解压并可运行的 PortraitLab 0.4.0 / 0.4.1 Windows x64 软件目录，以及本机 0.5.0 测试版。\n'
+        '包含此前模型加载修正与预设管线更新，不必先逐个安装旧小补丁；0.2 / 0.3 不列为本补丁的支持基线。\n'
+        '补丁不能单独运行。新用户先准备 0.4.0 完整包，再应用本补丁；已有完整运行时无需重下。\n'
+        '版本带 -dev 表示开发测试版，并非正式稳定发行。\n\n'
+        '新增：连续修补笔刷，支持自动/手动取样、Alt 换样、柔边、强度、局部恢复、逐笔撤销。\n'
+        '新增：面部塑形，支持人物选择、脸宽/颧骨/下颌/下巴、左右联动或分侧、局部推移与复位。\n'
+        '修片右栏分为“基础调整 / 修补笔刷 / 面部塑形”；修补、保护和选区随塑形移动。\n'
+        '通用、长者人像、成人人像、少年人像四类共 53 个预设，修肤、明暗和色彩分组应用。\n'
+        '保留矩形调整、模型状态入口与鼠标所在视窗的 V 轮换快捷键；无需新增模型。\n'
+        '修补不是语义去痘，须检查痣、雀斑与妆面；二维塑形可能影响临近发丝、饰物和背景。\n'
+        '完整操作与限制见 app/docs/EDIT_TOOLS.md；制作方式、来源与验证记录随 app/docs 提供。\n\n'
         '1. 先保存当前操作并关闭所有照影 / PortraitLab 窗口，确认处理与模型下载任务已停止。只再开一个窗口会复用旧后台。\n'
-        '2. 建议先备份原软件目录中的 Data（照片、参数、设置及模型）。\n'
+        '2. 升级前备份 app、PortraitLab.exe、同级 DLL/清单/说明、Licenses 和 Data（照片、参数、设置及模型）。\n'
         '3. 将本 ZIP 的全部内容直接解压到原软件目录，与 PortraitLab.exe 放在同一级，选择覆盖程序文件。\n'
         '   ZIP 内没有额外的顶层文件夹，请勿解压成原目录下的新子目录。\n'
-        '4. 双击 PortraitLab.exe，打开「照影」单窗口界面。\n\n'
+        f'4. 双击 PortraitLab.exe，确认软件内显示 {version}，右栏可切换新增工具。\n'
+        '5. 若要回滚，先关闭全部窗口，再恢复备份的旧程序文件和对应 Data；不要只退回 EXE 或混用新旧 app。\n\n'
         '本升级包仅更新 app、启动器、WebView2 SDK 组件、许可和说明；不包含也不覆盖 runtime、AI、Data 或 Cache。\n'
         '原版 Python / AI 运行环境继续使用，已有照片、编辑参数、收藏和模型保留。补丁不包含新模型。\n'
         '旧预览缓存会按新版处理重算；原尺寸处理后缩图与旧版缩图修片可能有细节差异，不承诺旧预览像素完全相同。\n'

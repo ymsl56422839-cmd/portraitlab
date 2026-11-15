@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "reviewed_on": "2026-11-13",
+  "reviewed_on": "2026-11-15",
   "application": "PortraitLab",
-  "distribution_policy": "Source code only; no model binaries, photographs or generated exports. Code licensing does not imply model-weight licensing.",
+  "distribution_policy": "Model binaries are excluded from Git source; the 0.7.0 Windows share release includes the five verified model files documented in licenses/V2_MODELS_NOTICE.txt. No user photographs or generated exports are distributed.",
   "default_backend": "classic",
   "models": [
     {
@@ -13,9 +13,9 @@
       "filename": "face_landmarker.task",
       "code_license": "Apache-2.0 (MediaPipe framework)",
       "code_license_url": "https://github.com/google-ai-edge/mediapipe/blob/master/LICENSE",
-      "weights_license": "not-independently-verified",
-      "weights_license_note": "RapidRetouch pinned manifest labels this weight Apache-2.0. MediaPipe framework licensing is verified; a version-specific weight grant has not been independently verified. Do not substitute the documentation footer code-sample license for model-weight terms. Weights are downloaded separately for the current local research use and are not included in this source distribution.",
-      "license_url": null,
+      "weights_license": "Apache-2.0",
+      "weights_license_note": "Official model cards explicitly license these models under Apache-2.0. Official latest downloads match the pinned /1 SHA256. Evidence is archived in licenses/mediapipe/provenance.json.",
+      "license_url": "https://www.apache.org/licenses/LICENSE-2.0",
       "model_card_url": "https://ai.google.dev/edge/mediapipe/solutions/vision/face_landmarker#models",
       "status": "downloadable",
       "activation": "Explicit setup.ps1 -DownloadModels; no download during photo processing.",
@@ -31,7 +31,9 @@
         "locally_downloaded_and_verified": true,
         "verified_on": "2026-11-13",
         "verification_scope": "Release validation only; the installer must verify each local download. Weights remain excluded from source distribution."
-      }
+      },
+      "license_evidence": "licenses/mediapipe/provenance.json",
+      "included_in_windows_share": true
     },
     {
       "id": "selfie_multiclass",
@@ -41,9 +43,9 @@
       "filename": "selfie_multiclass_256x256.tflite",
       "code_license": "Apache-2.0 (MediaPipe framework)",
       "code_license_url": "https://github.com/google-ai-edge/mediapipe/blob/master/LICENSE",
-      "weights_license": "not-independently-verified",
-      "weights_license_note": "RapidRetouch pinned manifest labels this weight Apache-2.0. MediaPipe framework licensing is verified; a version-specific weight grant has not been independently verified. Do not substitute the documentation footer code-sample license for model-weight terms. Weights are downloaded separately for the current local research use and are not included in this source distribution.",
-      "license_url": null,
+      "weights_license": "Apache-2.0",
+      "weights_license_note": "Official model cards explicitly license these models under Apache-2.0. Official latest downloads match the pinned /1 SHA256. Evidence is archived in licenses/mediapipe/provenance.json.",
+      "license_url": "https://www.apache.org/licenses/LICENSE-2.0",
       "model_card_url": "https://ai.google.dev/edge/mediapipe/solutions/vision/image_segmenter#models",
       "status": "downloadable",
       "activation": "Explicit setup.ps1 -DownloadModels; no download during photo processing.",
@@ -59,7 +61,9 @@
         "locally_downloaded_and_verified": true,
         "verified_on": "2026-11-13",
         "verification_scope": "Release validation only; the installer must verify each local download. Weights remain excluded from source distribution."
-      }
+      },
+      "license_evidence": "licenses/mediapipe/provenance.json",
+      "included_in_windows_share": true
     },
     {
       "id": "ic_light_v1",
@@ -83,21 +87,25 @@
     },
     {
       "id": "modelscope_skin_retouching",
-      "title": "ModelScope Skin Retouching (planned research adapter)",
+      "title": "ModelScope Skin Retouching (V2 neural blemish repair and skin blend)",
       "source_url": "https://modelscope.cn/models/iic/cv_unet_skin_retouching_torch",
       "sha256": null,
-      "code_license": "Not independently audited for this integration",
-      "weights_license": "Not independently audited for this integration",
-      "weights_license_note": "Catalog reference only. Exact code revision, checkpoints, base dependencies and redistribution terms must be verified before implementation or download.",
-      "license_url": null,
-      "status": "planned",
-      "activation": "Disabled; no implementation and no automatic download.",
+      "code_license": "Apache-2.0",
+      "weights_license": "Apache-2.0",
+      "weights_license_note": "Pinned source and two checkpoints; see licenses/modelscope/provenance.json and licenses/V2_MODELS_NOTICE.txt.",
+      "license_url": "https://modelscope.cn/models/iic/cv_unet_skin_retouching_torch",
+      "status": "integrated-v2",
+      "activation": "Included and checksum-verified in the 0.7.0 full share release; source users must explicitly download models.",
       "dependencies": [
-        "future explicit implementation",
-        "artifact and license audit"
+        "PyTorch",
+        "OpenCV",
+        "numpy",
+        "pinned ModelScope source subset"
       ],
-      "intended_use": "Research comparison against classic skin processing.",
-      "included_in_source_distribution": false
+      "intended_use": "Opt-in local repair and full-resolution tiled skin blending; no automatic selection of every candidate.",
+      "included_in_source_distribution": false,
+      "included_in_windows_share": true,
+      "artifact_manifest": "experiments/portraitlab_v2/model_catalog.py"
     },
     {
       "id": "lbm_relighting",

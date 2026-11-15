@@ -25,13 +25,14 @@ from PIL import Image
 
 from . import lighting
 from . import lighting_geometry
+from .face_shape import validate_face_shape, has_shape, apply_face_shape, warp_image
 
 ACTIVE = {"queued", "running", "cancelling"}
 ASSETS = {"base.png", "normal.png", "depth.png", "mask.png"}
 GEOMETRY_SCHEMA = "portraitlab-interactive-lighting-1"
 SUBJECT_MASK_POLICY_VERSION = "person-probability-feather-10-90-v2"
 SUBJECT_MASK_LOW, SUBJECT_MASK_HIGH = .1, .9
-BASE_CONTRACT = "canonical-full-resolution-retouch-v1"
+BASE_CONTRACT = "canonical-full-resolution-retouch-v2-edit-tools"
 BASE_CACHE_BYTES = 512 * 1024 * 1024
 BASE_CACHE_PER_PHOTO = 3
 _UNCHANGED_GEOMETRY = object()
@@ -180,6 +181,8 @@ class LightingController:
         signature = {"contract": BASE_CONTRACT, "source": snapshot["sha256"],
                      "params": snapshot["params"], "strokes": snapshot.get("strokes", []),
                      "local_adjustment": snapshot.get("local_adjustment"),
+                     "spot_repairs": snapshot.get("spot_repairs", []),
+                     "face_shape": validate_face_shape(snapshot.get("face_shape")),
                      "analysis": self.store.analysis_signature,
                      "models": self.store.model_fingerprint(),
                      "device_preference": self.store.state.get("processing_device", "auto")}
@@ -214,7 +217,20 @@ class LightingController:
             original = self.store.rgb(snapshot) if original is None else original
             analysis = self.store.analysis(snapshot, original) if analysis is None else analysis
             local = self.store.engine_module.validate_local_adjustment(snapshot.get("local_adjustment"))
-            if local is not None:
+            repairs = snapshot.get("spot_repairs", [])
+            shape = validate_face_shape(snapshot.get("face_shape"))
+            if has_shape(shape):
+                unshaped, meta = self.retouch_base({**snapshot, "face_shape": None}, original, analysis)
+                base, shape_meta = apply_face_shape(unshaped, shape, analysis)
+                meta = {**meta, "face_shape": shape_meta}
+                meta["warnings"] = list(dict.fromkeys(meta.get("warnings", []) + shape_meta.get("warnings", [])))
+            elif repairs:
+                from .spot_repair import apply_repairs
+                unpatched, meta = self.retouch_base({**snapshot, "spot_repairs": []}, original, analysis)
+                base, repair_meta = apply_repairs(unpatched, repairs)
+                meta = {**meta, "spot_repairs": repair_meta}
+                meta["warnings"] = list(dict.fromkeys(meta.get("warnings", []) + repair_meta.get("warnings", [])))
+            elif local is not None:
                 # Moving/resizing the rectangle or changing its sliders reuses
                 # the expensive global skin pass, including after a restart.
                 global_snapshot = {**snapshot, "local_adjustment": None}
@@ -340,12 +356,13 @@ class LightingController:
         if background is None:
             # The classic engine skips segmentation when there is no detected face.
             # Lighting still needs the complete person (hair and clothing included).
-            adapter = getattr(self.store.engine, "_parts_adapter", None)
-            if adapter is None:
-                raise RuntimeError("人物选区不可用，请先准备基础处理模型。")
+            # A valid disk analysis can be reused after restart without loading
+            # the adapters. Load/verify local model files lazily here instead of
+            # interpreting an unloaded adapter as a missing model installation.
             segment = cv2.resize(original, (width, height), interpolation=cv2.INTER_AREA).astype(np.float32)/255
-            with self.store.engine_lock:
-                background = adapter.predict(segment).get("background")
+            with self.store.engine_lock, self.store.engine._lock:
+                self.store.engine._ensure_models()
+                background = self.store.engine._parts_adapter.predict(segment).get("background")
         if background is None:
             raise RuntimeError("无法分析人物选区，请检查基础处理模型。")
         foreground = np.clip(1-np.asarray(background, np.float32), 0, 1)
@@ -403,8 +420,14 @@ class LightingController:
         session = self.checked(self.sessions / job["id"])
         session.mkdir(parents=True, exist_ok=True)
         self.save_image(session / "base.png", base, "PNG")
+        shape_ops = self.store.shape_layout(snapshot, analysis=analysis)["operations"]
         for name in ("normal.png", "depth.png", "mask.png"):
-            shutil.copyfile(directory / name, self.checked(session / name))
+            if shape_ops:
+                with Image.open(directory / name) as image:
+                    field = np.asarray(image.convert("RGB" if name == "normal.png" else "L")).copy()
+                self.save_image(session / name, Image.fromarray(warp_image(field, shape_ops)), "PNG")
+            else:
+                shutil.copyfile(directory / name, self.checked(session / name))
         prefix = f"/api/lighting/assets/{job['id']}/"
         return {"photo_id": snapshot["id"], "version": snapshot["version"],
                 "base_url": prefix+"base.png", "normal_url": prefix+"normal.png", "depth_url": prefix+"depth.png",
@@ -451,6 +474,9 @@ class LightingController:
             depth = np.asarray(image.convert("L")).copy()
         with Image.open(directory / "mask.png") as image:
             mask = np.asarray(image.convert("L")).copy()
+        if has_shape(snapshot.get("face_shape")):
+            operations = self.store.shape_layout(snapshot)["operations"]
+            normal, depth, mask = (warp_image(field, operations) for field in (normal, depth, mask))
         result = lighting.render_lighting(rgb, normal, depth, mask, config)
         background_policy = {"subject": "exact_input_pixels_outside_subject_mask",
                              "background": "exact_input_pixels_inside_subject_mask",

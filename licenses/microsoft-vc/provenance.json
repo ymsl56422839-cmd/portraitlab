@@ -1,0 +1,39 @@
+{
+  "reviewed_on": "2026-11-15",
+  "runtime": "Microsoft Visual C++ 2015-2022 x64",
+  "version": "14.44.35211",
+  "official_download_url": "https://aka.ms/vs/17/release/vc_redist.x64.exe",
+  "final_url": "https://download.visualstudio.microsoft.com/download/pr/e9604e21-4b79-4096-a4b3-1b63d4b55b4d/CC0FF0EB1DC3F5188AE6300FAEF32BF5BEEBA4BDD6E8E445A9184072096B713B/VC_redist.x64.exe",
+  "redistributable_sha256": "cc0ff0eb1dc3f5188ae6300faef32bf5beeba4bdd6e8e445a9184072096b713b",
+  "extraction": "Unmodified DLLs extracted from the official redistributable CAB payload for app-local deployment. No arbitrary operating-system DLL copying.",
+  "developer_license_basis": "Existing Visual Studio Community 2022 installation confirmed locally; this AGPL open-source application falls within Community use rights. Community section 4 and the official REDIST list grant unmodified object-code redistribution. The runtime end-user EULA is not itself the developer redistribution grant.",
+  "community_license_url": "https://visualstudio.microsoft.com/wp-content/uploads/2021/11/Visual-Studio-2022-Community-License-EN.docx",
+  "redist_url": "https://learn.microsoft.com/en-us/visualstudio/releases/2022/redistribution",
+  "end_user_license": "LICENSE.rtf, original English RTF from the official redist; LICENSE.txt is a readable plain-text extraction.",
+  "evidence_files": [
+    {
+      "file": "Installed-VS2022-REDIST.txt",
+      "sha256": "da53b097e02b08e0fc69706102a60bc384fe756426ae4dc4a855e96f95cb2b9c"
+    },
+    {
+      "file": "LICENSE.rtf",
+      "sha256": "8099dc3cf9502c335da829e5c755948a12e3e6de490eb492a99deb673d883d8b"
+    },
+    {
+      "file": "LICENSE.txt",
+      "sha256": "f3f19ba4522d7ac8d65658d0fa96d01e6fba4682483578017afd01560cbd7daa"
+    },
+    {
+      "file": "Visual-Studio-2022-Community-License-EN.docx",
+      "sha256": "41a207b10c8ab91d0d2f10a854715f73dca54509581692d2fe179aa3ffcb8540"
+    },
+    {
+      "file": "Visual-Studio-2022-Community-License-EN.txt",
+      "sha256": "a38d10afc3ef8fb2e64af972a9c64d998ef964de8101b9f7a59703f72fa3a5ab"
+    },
+    {
+      "file": "VS2022-REDIST.html",
+      "sha256": "03c1ae207631b0cbe8d0b4049bd422a96280f19d13357e7d07d12dda8451ed2c"
+    }
+  ]
+}

@@ -327,6 +327,8 @@ def test_capabilities_and_legacy_preview_refresh_preserve_edits(api):
     client, app = api
     bootstrap = client.get("/api/bootstrap").json()
     assert bootstrap["capabilities"] == {"local_adjustments": True, "canonical_preview": True,
+                                          "preset_pipeline": 2, "spot_repairs": True,
+                                          "repair_brush": True, "face_shape": True,
                                           "canonical_preview_contract": server.PREVIEW_CONTRACT}
     assert bootstrap["local_defaults"] == engine.LOCAL_DEFAULT_PARAMS
     photo = import_one(client)

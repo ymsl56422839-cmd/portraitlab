@@ -143,7 +143,7 @@ def test_acne_strength_is_independent_of_detection_and_other_skin_tools(monkeypa
         amounts.append(amount)
         return [((0, 0, 1, 1), np.ones(source.shape[:2], np.float32))]
     def repair(source, faces, params, **kwargs):
-        assert params == {"acne": ACNE_DETECTION_SENSITIVITY}
+        assert params == {"acne": 1.0}
         assert kwargs["acne"]
         return source + .2
     monkeypatch.setattr(skin, "acne_masks", detect)
@@ -179,6 +179,35 @@ def test_acne_with_no_detected_spots_or_no_face_is_exact(monkeypatch):
         output, meta = make_engine().render(rgb, {**LOCAL_DEFAULT_PARAMS, "acne": 1}, current)
         np.testing.assert_array_equal(output, rgb)
         assert meta["acne"]["spots_found"] is False
+
+
+def test_zero_detection_sensitivity_still_repairs_clearest_spots(monkeypatch):
+    # Stub only face localization: detection, skin.apply and frequency-separated
+    # repair remain the real upstream code. Sensitivity zero means clearest-only,
+    # not disabled; passing zero into skin.apply used to activate its noop path.
+    size, face_width = 256, 200
+    yy, xx = np.mgrid[:size, :size]
+    lab = np.empty((size, size, 3), np.float32)
+    lab[:] = (65, 12, 18)
+    lab[..., 0] += .35 * np.sin(xx * 2.1) * np.cos(yy * 1.8)
+    red = (xx - 80) ** 2 + (yy - 80) ** 2 <= 9
+    lab[red] += (-8, 12, 0)
+    source = np.rint(np.clip(cv2.cvtColor(lab, cv2.COLOR_Lab2RGB), 0, 1) * 255).astype(np.uint8)
+    weight = np.ones((size, size), np.float32)
+    landmarks = np.zeros((478, 2), np.float32)
+    cached = {"faces": [landmarks], "face_count": 1, "face_mask": weight, "parts": {}}
+    monkeypatch.setattr(skin, "_face_boxes", lambda shape, faces: [(landmarks, face_width, (0, 0, size, size))])
+    monkeypatch.setattr(skin, "_face_weights", lambda *args, **kwargs: (weight, weight, None, landmarks))
+    monkeypatch.setattr(skin, "face_width", lambda points: face_width)
+    monkeypatch.setattr(skin, "wrinkle_zones", lambda shape, points: {"chin_lines": np.zeros(shape, np.float32)})
+    spots = skin.acne_masks(source.astype(np.float32) / 255, cached["faces"], 0)
+    assert spots[0][1][red].mean() > .7
+    result, meta = make_engine().render(source, {**LOCAL_DEFAULT_PARAMS, "acne": 1, "acne_sensitivity": 0}, cached)
+    assert meta["acne"]["detection_sensitivity"] == 0
+    assert meta["acne"]["spots_found"] is True
+    before_a = cv2.cvtColor(source.astype(np.float32) / 255, cv2.COLOR_RGB2Lab)[..., 1]
+    after_a = cv2.cvtColor(result.astype(np.float32) / 255, cv2.COLOR_RGB2Lab)[..., 1]
+    assert np.abs(after_a[red] - 12).mean() < .5 * np.abs(before_a[red] - 12).mean()
 
 
 def test_upstream_acne_repairs_red_spot_preserves_mole_line_and_texture():

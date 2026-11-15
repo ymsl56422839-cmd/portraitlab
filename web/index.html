@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="zh-CN">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>照影 PortraitLab · 人像修图</title><link rel="icon" href="/icon.svg" type="image/svg+xml"><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/presets.css"><link rel="stylesheet" href="/preview.css"><link rel="stylesheet" href="/lighting.css"><link rel="stylesheet" href="/selection.css"><link rel="stylesheet" href="/settings.css"><script defer src="/app.js"></script><script defer src="/selection-ui.js"></script><script defer src="/preview-shortcuts.js"></script><script defer src="/presets-ui.js"></script><script defer src="/settings-ui.js"></script><script defer src="/lighting-renderer.js"></script><script defer src="/lighting-ui.js"></script></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>照影 PortraitLab · 人像修图</title><link rel="icon" href="/icon.svg" type="image/svg+xml"><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/presets.css"><link rel="stylesheet" href="/preview.css"><link rel="stylesheet" href="/lighting.css"><link rel="stylesheet" href="/selection.css"><link rel="stylesheet" href="/settings.css"><link rel="stylesheet" href="/spot.css"><link rel="stylesheet" href="/shape.css"><script defer src="/app.js"></script><script defer src="/geometry.js"></script><script defer src="/selection-ui.js"></script><script defer src="/preview-shortcuts.js"></script><script defer src="/presets-ui.js"></script><script defer src="/spot-ui.js"></script><script defer src="/shape-ui.js"></script><script defer src="/settings-ui.js"></script><script defer src="/lighting-renderer.js"></script><script defer src="/lighting-ui.js"></script></head>
 <body>
 <svg class="svg-defs" xmlns="http://www.w3.org/2000/svg"><defs>
 <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
@@ -17,7 +17,7 @@
 <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 6h16M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7m4-7v7"/></symbol>
 </defs></svg>
 <header class="topbar">
- <a class="brand" href="/" aria-label="照影"><span class="brand-mark"><span></span></span><span>照影<span class="brand-sub">PORTRAITLAB</span></span><span class="version">0.4.1</span></a>
+ <a class="brand" href="/" aria-label="照影"><span class="brand-mark"><span></span></span><span>照影<span class="brand-sub">PORTRAITLAB</span></span><span id="appVersion" class="version">…</span></a>
  <nav class="module-tabs" aria-label="功能模块"><button type="button" data-module="retouch" class="active" aria-pressed="true">修片</button><button type="button" id="relightBtn" data-module="lighting" aria-pressed="false" disabled>光影重塑</button></nav><div class="top-center"><span class="status-dot"></span><span id="connectionStatus">正在启动…</span></div>
  <div class="top-actions"><button id="aboutBtn" class="quiet"><svg><use href="#i-info"/></svg>帮助与来源</button><button id="exportBtn" class="primary" disabled><svg><use href="#i-export"/></svg><span>导出照片</span><b id="exportCount">0</b></button></div>
 </header>
@@ -42,7 +42,7 @@
    </div>
   </div>
   <div class="preview-zoom-bar">
-   <div class="zoom-controls" role="group" aria-label="图像缩放"><label for="zoomSlider">缩放</label><button id="zoomOut" type="button" aria-label="缩小图像" title="缩小">−</button><input id="zoomSlider" type="range" min="0" max="1000" step="1" value="769" aria-label="图像缩放比例" aria-valuetext="100%" disabled><button id="zoomIn" type="button" aria-label="放大图像" title="放大">＋</button><output id="zoomPercent" for="zoomSlider">100%</output><button id="zoomFit" type="button" title="完整显示照片">适应窗口</button></div>
+   <div class="zoom-controls" role="group" aria-label="图像缩放"><label for="zoomSlider">缩放</label><button id="zoomOut" type="button" aria-label="缩小图像" title="缩小">−</button><input id="zoomSlider" type="range" min="0" max="1000" step="1" value="769" aria-label="图像缩放比例" aria-valuetext="100%" disabled><button id="zoomIn" type="button" aria-label="放大图像" title="放大">＋</button><output id="zoomPercent" for="zoomSlider">100%</output><button id="zoomActual" type="button" title="按照片尺寸缩放至 100%；画布使用缩略预览，细节以原尺寸导出为准" disabled>100%</button><button id="zoomFit" type="button" title="完整显示照片">适应窗口</button></div>
    <span id="zoomHint" class="preview-hint">滚轮缩放 · 拖动画面</span>
   </div>
   <div id="selectionToolbar" class="selection-toolbar" role="group" aria-label="修片调整范围"><span>修片范围</span><div class="selection-scope-buttons"><button id="globalEditBtn" type="button" class="active" aria-pressed="true" disabled>全图调整</button><button id="rectangleSelectBtn" type="button" aria-pressed="false" disabled>矩形选区</button></div><button id="redrawSelectionBtn" type="button" hidden>重新框选</button><button id="finishSelectionBtn" type="button" hidden>完成局部</button><button id="deleteSelectionBtn" type="button" hidden>删除局部调整</button><span id="selectionHint">全图调整 · 可框选局部套用预设</span></div>
@@ -68,8 +68,16 @@
  </section>
  <aside class="adjustments">
   <div id="retouchPanel" class="module-panel">
-  <div class="panel-heading"><span><svg><use href="#i-sliders"/></svg>照片调整</span><button id="savePresetBtn" class="text-button" disabled>保存当前效果</button><button id="resetBtn" class="text-button" disabled>恢复默认</button></div>
+  <div class="panel-heading"><span><svg><use href="#i-sliders"/></svg><span id="retouchToolTitle">照片调整</span></span><button id="savePresetBtn" class="text-button" disabled>保存当前效果</button><button id="resetBtn" class="text-button" disabled>恢复默认</button></div>
+  <nav class="retouch-tool-tabs" role="tablist" aria-label="修片工具"><button id="retouchBasicTab" type="button" role="tab" data-retouch-tool="basic" aria-controls="retouchBasicPanel" aria-selected="true" class="active">基础调整</button><button id="retouchRepairTab" type="button" role="tab" data-retouch-tool="repair" aria-controls="retouchRepairPanel" aria-selected="false" tabindex="-1">修补笔刷</button><button id="retouchShapeTab" type="button" role="tab" data-retouch-tool="shape" aria-controls="retouchShapePanel" aria-selected="false" tabindex="-1">面部塑形</button></nav>
+  <section id="retouchBasicPanel" class="retouch-tool-panel" data-retouch-panel="basic" role="tabpanel" aria-labelledby="retouchBasicTab">
   <div id="adjustmentScope" class="adjustment-scope" role="status">全图调整</div>
+  <section class="manual-controls essential-controls" aria-label="当前调整参数">
+   <div class="adjustment-tabs" role="tablist" aria-label="处理步骤"><button id="skinTab" type="button" role="tab" aria-controls="skinStage" data-adjustment-tab="skin" aria-selected="true" class="active">修肤</button><button id="lightTab" type="button" role="tab" aria-controls="lightStage" data-adjustment-tab="light" aria-selected="false">明暗</button><button id="colorTab" type="button" role="tab" aria-controls="colorStage" data-adjustment-tab="color" aria-selected="false">色彩</button></div>
+   <section id="skinStage" class="control-section" role="tabpanel" aria-labelledby="skinTab" data-adjustment-stage="skin"><div class="segmented"><button data-region="face" class="active">面部</button><button data-region="skin">面部与身体</button></div><div id="skinControls"></div><details class="skin-details"><summary>更多肤质参数</summary><div id="skinDetailControls"></div><p class="control-note">痘点识别决定检测范围；去痘强度决定修复程度。保护笔刷可保留痣、雀斑与妆面。</p></details></section>
+   <section id="lightStage" class="control-section" role="tabpanel" aria-labelledby="lightTab" data-adjustment-stage="light" hidden><div id="toneControls"></div><p id="toneScopeNote" class="control-note">面部曝光作用于皮肤选区；整体曝光作用于当前编辑范围。</p></section>
+   <section id="colorStage" class="control-section" role="tabpanel" aria-labelledby="colorTab" data-adjustment-stage="color" hidden><div id="colorControls"></div><p class="control-note">调整当前范围的冷暖和饱和度，保留已有修肤与明暗参数。</p></section>
+  </section>
   <div class="adjustments-scroll">
    <section class="preset-section">
     
@@ -78,14 +86,13 @@
     <p id="presetSummary" class="control-note"></p><div id="presets" class="presets preset-grid"></div>
    </section>
 
-   <details class="manual-controls"><summary>手动调整参数</summary>
-    <section class="control-section"><div class="section-title"><h2>皮肤</h2></div><div class="segmented"><button data-region="face" class="active">面部</button><button data-region="skin">面部与身体</button></div><div id="skinControls"></div><p class="control-note">纹理柔化会减少皮肤纹理。选区不准确时，可用下方笔刷保护细节。</p></section>
-    <section class="control-section"><div class="section-title"><h2>曝光与色彩</h2></div><div id="toneControls"></div><p id="toneScopeNote" class="control-note">面部提亮作用于皮肤选区；整体曝光、冷暖和饱和度作用于整张照片。</p></section>
-   </details>
    <section class="control-section brush-section"><div class="section-title"><h2>保护区域</h2><button id="clearMask" class="text-button" disabled>清除笔刷</button></div><button id="maskView" type="button" class="mask-view-toggle" data-view="mask" aria-pressed="false" disabled>查看皮肤选区</button><div class="brush-buttons"><button id="protectBrush"><svg><use href="#i-brush"/></svg>保护笔刷 <kbd>B</kbd></button><button id="restoreBrush">恢复处理</button></div><div class="brush-size"><label for="brushSize">笔刷大小</label><input type="range" id="brushSize" min="1" max="15" step="0.5" value="4"><output id="brushSizeValue">4%</output></div><p id="brushScopeNote" class="control-note">保护痣、雀斑或妆面。仅影响修肤和面部提亮；布光模块使用独立的主体选区。</p></section>
   </div>
-   <section id="intensitySection" class="control-section"><div class="current-effect"><strong id="currentPresetName">尚未选择照片</strong><span id="currentPresetHint">预设只应用到当前照片</span></div><div id="opacityControl"></div><div class="effect-tools"><button id="originalPresetBtn" title="清除修片参数，保留独立的布光调整" disabled>重置修片</button><button id="presetCompareBtn" hidden disabled>按住对比</button></div></section>
+   <section id="intensitySection" class="control-section"><div class="current-effect"><strong id="currentPresetName">尚未选择照片</strong><span id="currentPresetHint">预设只应用到当前照片</span></div><p id="presetFeedback" class="preset-feedback" role="status" aria-live="polite">修肤、明暗和色彩可分别选择预设；同类效果替换，其他调整保留。</p><div id="opacityControl"></div><div class="effect-tools"><button id="originalPresetBtn" title="清除当前范围的修片参数，保留独立布光和点修" disabled>重置修片</button><button id="presetCompareBtn" hidden disabled>按住对比</button></div></section>
   <div class="adjustments-bottom"><details id="batchTools"><summary>批量套用 <span id="batchSelectionCount">0 张已选</span></summary><button id="syncBtn" disabled><svg><use href="#i-sliders"/></svg>套用到选中照片 <span id="syncCount">0</span></button><button id="undoBatchBtn" class="quiet" disabled>撤销上次批量套用</button><p id="batchHint">只复制参数，保留各自的保护笔刷</p></details></div>
+  </section>
+  <section id="retouchRepairPanel" class="retouch-tool-panel retouch-tool-scroll" data-retouch-panel="repair" role="tabpanel" aria-labelledby="retouchRepairTab" hidden><div id="retouchToolHost"></div></section>
+  <section id="retouchShapePanel" class="retouch-tool-panel retouch-tool-scroll" data-retouch-panel="shape" role="tabpanel" aria-labelledby="retouchShapeTab" hidden><div id="shapeToolHost"></div></section>
   </div><div id="lightingPanel" class="module-panel lighting-panel" hidden><div id="lightingToolHost" class="lighting-scroll"></div></div>
  </aside>
 </main>

@@ -31,7 +31,7 @@ ALGORITHM = {
     "commit": "d6f9a848fa5ba5628239b568777c5be3e7851a8e",
     "license": "AGPL-3.0-only",
     "relight": "face-local radial exposure in linear RGB; not generative relighting",
-    "acne": "fixed-sensitivity compact spot detection, frequency-separated tone inpainting, independent delta strength",
+    "acne": "adjustable compact spot detection, frequency-separated tone inpainting, independent delta strength",
 }
 MODEL_SPECS = {
     "face_landmarker": {
@@ -56,24 +56,24 @@ MODEL_SPECS = {
     },
 }
 DEFAULT_PARAMS = {
-    "smooth": 0.25, "blemishes": 0.20, "even": 0.15, "texture": 0.10, "acne": 0.0,
+    "smooth": 0.0, "blemishes": 0.0, "even": 0.0, "texture": 0.0, "acne": 0.0, "acne_sensitivity": 0.5,
     "exposure": 0.0, "warmth": 0.0, "saturation": 1.0, "relight": 0.0,
-    "opacity": 0.75, "region": "face", "engine": "classic",
+    "opacity": 1.0, "region": "face", "engine": "classic",
 }
 PRESETS = {
-    "自然": dict(DEFAULT_PARAMS),
+    "自然": {**DEFAULT_PARAMS, "smooth": .25, "blemishes": .20, "even": .15, "texture": .10, "opacity": .75},
     "细腻": {**DEFAULT_PARAMS, "smooth": 0.45, "blemishes": 0.4, "even": 0.25, "texture": 0.25, "opacity": 0.85},
-    "原图": {**DEFAULT_PARAMS, "smooth": 0.0, "blemishes": 0.0, "even": 0.0, "texture": 0.0, "opacity": 0.0},
+    "原图": dict(DEFAULT_PARAMS),
 }
 _RANGES = {
-    "smooth": (0, 1), "blemishes": (0, 1), "even": (0, 1), "texture": (0, 1), "acne": (0, 1),
+    "smooth": (0, 1), "blemishes": (0, 1), "even": (0, 1), "texture": (0, 1), "acne": (0, 1), "acne_sensitivity": (0, 1),
     "exposure": (-2, 2), "warmth": (-1, 1), "saturation": (0, 2),
     "relight": (-1, 1), "opacity": (0, 1),
 }
 # Local adjustments are an additional pass over the global result. New numeric
 # beauty controls inherit zero here, rather than silently doubling global edits.
 LOCAL_DEFAULT_PARAMS = {**DEFAULT_PARAMS, **dict.fromkeys(_RANGES, 0.0),
-                        "saturation": 1.0, "opacity": 1.0}
+                        "saturation": 1.0, "opacity": 1.0, "acne_sensitivity": 0.5}
 ANALYSIS_EDGE = 1600
 ACNE_DETECTION_SENSITIVITY = 0.5
 _LUMA = np.array([0.2126, 0.7152, 0.0722], np.float32)
@@ -455,15 +455,17 @@ class Engine:
         acne_found = False
         if beauty_active:
             step = perf_counter()
-            # Upstream's amount controls detection, not correction strength.
-            # Keep detection fixed, then mix only its repair delta. The
-            # canonical full-size render is also the source of previews.
+            # Detection and repair blend are separate controls. All previews
+            # derive from this canonical full-size operation.
             if p["acne"] > 0:
-                spots = skin.acne_masks(src, faces, ACNE_DETECTION_SENSITIVITY,
+                spots = skin.acne_masks(src, faces, p["acne_sensitivity"],
                                         head_hair=parts.get("hair"), ai_skin=parts.get("face_skin"))
                 acne_found = any(np.any(spot > 0) for _, spot in spots)
                 if acne_found:
-                    healed = skin.apply(src, faces, {"acne": ACNE_DETECTION_SENSITIVITY}, acne=spots,
+                    # A zero detection sensitivity still detects the clearest
+                    # spots. A positive flag must enable upstream healing;
+                    # the supplied spot masks already encode detection.
+                    healed = skin.apply(src, faces, {"acne": 1.0}, acne=spots,
                                         head_hair=parts.get("hair"), ai_skin=parts.get("face_skin"))
                     changed = src + p["acne"] * (healed - src)
             times["acne"] = (perf_counter() - step) * 1000
@@ -482,6 +484,13 @@ class Engine:
             changed = src + (changed - src) * effect_mask[..., None]
         else:
             times["face_skin"] = 0.0
+        if p["opacity"] > 0 and any(p[k] > 0 for k in ("smooth", "blemishes", "even", "texture", "acne")):
+            if not faces:
+                warnings.append("未检测到可处理的人脸，自动修肤未生效；可放大检查，或使用取样点修。")
+            elif not np.any(effect_mask > 0):
+                warnings.append("当前没有可处理的皮肤选区；请检查作用范围与保护笔刷。")
+            elif p["acne"] > 0 and not acne_found:
+                warnings.append("未检测到可修复的独立痘点；可提高痘点识别灵敏度，或使用取样点修。")
         step = perf_counter()
         field = None
         if p["relight"] != 0 and faces and p["opacity"] > 0:
@@ -517,7 +526,7 @@ class Engine:
             "timings_ms": times, "algorithm": dict(ALGORITHM), "models": analysis.get("models", self.status()["models"]),
             "analysis_shape": analysis.get("shape"), "output_shape": list(original.shape[:2]),
             "mask_coverage": float(np.mean(effect_mask > 0.1)), "stroke_count": len(clean_strokes),
-            "acne": {"strength": p["acne"], "detection_sensitivity": ACNE_DETECTION_SENSITIVITY,
+            "acne": {"strength": p["acne"], "detection_sensitivity": p["acne_sensitivity"],
                      "spots_found": acne_found, "scope": "face_skin_with_protection_and_local_rectangle"},
             "color_processing": "Input/output encoded sRGB uint8 RGB; skin algorithms use Lab; exposure/white-balance gains/saturation/overall opacity use linear RGB.",
             "brush_scope": "Skin beauty and face-local radial exposure only; global exposure/color are not masked.",

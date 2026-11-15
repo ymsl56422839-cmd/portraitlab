@@ -1,0 +1,699 @@
+{
+  "schema_version": 1,
+  "title": "照影 V2：样本与验收计划",
+  "reviewed_on": "2026-11-14",
+  "timezone": "Asia/Shanghai",
+  "document_role": "拟定验收方案；所有 gates 默认 not_run。历史单图研究仅作证据和回归案例，不能替代本原型的实际执行结果。",
+  "linked_capability_plan": "capability-plan.json",
+  "scope": {
+    "current_stage": "独立原型：原生瓦片画布、确认处理人物、候选默认全关及逐点局部修补。",
+    "current_application": "冻结；不制作补丁、不发布。",
+    "implemented_by_this_document": false,
+    "evidence_limit": "只有 1 张独立用户原片。裁切、亮度变体、不同算法输出属于同源衍生物。",
+    "competitor_limit": "没有同原片的质镜授权成片；质镜效果对标尚不能执行，不能宣称持平或超越。"
+  },
+  "samples": {
+    "unique_original_count": 1,
+    "existing": [
+      {
+        "id": "sample_user_001",
+        "original_filename": "private-sample-001.jpg",
+        "original_source": "private-inputs/private-sample-001.jpg (not distributed)",
+        "origin": "用户明确提供用于本项目比较和测试。",
+        "permitted_use": "内部离线测试和用户审阅；未据此推定可公开传播照片或衍生物。",
+        "dimensions": [
+          7643,
+          5098
+        ],
+        "canonical_input": {
+          "color_space": "sRGB",
+          "format": "PNG",
+          "sha256": "3d1e638d3812afa8276aace35828f7e373d3c4bca0c86f61df88fb1520cdf0cd"
+        },
+        "identity_group": "user_subject_001",
+        "split": "tuning",
+        "age_category": "not_recorded",
+        "derivatives_policy": "所有主脸裁切、保护区测试、亮度变体、现有及新模型输出都归入本 sample，不增加独立样本计数。",
+        "known_rois": [
+          {
+            "id": "main_face",
+            "xyxy": [
+              4413,
+              494,
+              5844,
+              2021
+            ],
+            "purpose": "1431×1527 主脸修肤测试"
+          },
+          {
+            "id": "false_bag",
+            "xyxy": [
+              731,
+              4424,
+              1011,
+              4718
+            ],
+            "purpose": "花纹包误检回归"
+          },
+          {
+            "id": "forehead_upper",
+            "xyxy": [
+              5053,
+              819,
+              5070,
+              837
+            ],
+            "purpose": "额头小色点保留审查"
+          },
+          {
+            "id": "forehead_lower",
+            "xyxy": [
+              4931,
+              918,
+              4945,
+              932
+            ],
+            "purpose": "额头小色点保留审查"
+          }
+        ],
+        "evidence_ids": [
+          "ev_modelscope_trial",
+          "ev_combination_review",
+          "ev_false_face"
+        ]
+      }
+    ],
+    "pilot_target": {
+      "unique_authorized_originals": 16,
+      "tuning": 8,
+      "held_out": 8,
+      "status": "proposed_not_acquired",
+      "note": "是首轮筛查规模，不等于足以证明所有人群普遍适用；任何功能覆盖不足时继续补样本并降低声明范围。"
+    },
+    "coverage_slots": [
+      {
+        "id": "slot_01",
+        "need": "点状红痘与稳定痣并存",
+        "purpose": "检出收益与保痣",
+        "existing_sample_id": "sample_user_001",
+        "status": "partial"
+      },
+      {
+        "id": "slot_02",
+        "need": "密集雀斑与临时瑕疵并存",
+        "purpose": "避免把稳定肤色特征全部清除",
+        "status": "missing"
+      },
+      {
+        "id": "slot_03",
+        "need": "明显痘印、泛红或色素不均",
+        "purpose": "与点修区分的大尺度均肤",
+        "status": "missing"
+      },
+      {
+        "id": "slot_04",
+        "need": "真实黑眼圈与自然卧蚕",
+        "purpose": "眼周明暗不改结构",
+        "status": "missing"
+      },
+      {
+        "id": "slot_05",
+        "need": "眼袋及侧向光照",
+        "purpose": "区分结构和阴影",
+        "status": "missing"
+      },
+      {
+        "id": "slot_06",
+        "need": "长者自然皱纹与细纹",
+        "purpose": "保留年龄特征",
+        "status": "missing"
+      },
+      {
+        "id": "slot_07",
+        "need": "长者复杂光线与皮肤斑点",
+        "purpose": "长者分类独立复核",
+        "status": "missing"
+      },
+      {
+        "id": "slot_08",
+        "need": "经本人或监护人授权的少年自然皮肤",
+        "purpose": "少年预设克制与安全范围",
+        "status": "missing"
+      },
+      {
+        "id": "slot_09",
+        "need": "少年临时瑕疵与稳定特征",
+        "purpose": "少年类别的真实功能收益",
+        "status": "missing"
+      },
+      {
+        "id": "slot_10",
+        "need": "明显油光、未剪切高光",
+        "purpose": "压光不发灰",
+        "status": "missing"
+      },
+      {
+        "id": "slot_11",
+        "need": "已经剪切的皮肤高光",
+        "purpose": "诚实呈现不可恢复细节",
+        "status": "missing"
+      },
+      {
+        "id": "slot_12",
+        "need": "较深肤色及明暗反差",
+        "purpose": "肤色不漂白、不发灰",
+        "status": "missing"
+      },
+      {
+        "id": "slot_13",
+        "need": "较浅肤色、完整妆容与细节",
+        "purpose": "唇妆、腮红、眼妆保护",
+        "status": "missing"
+      },
+      {
+        "id": "slot_14",
+        "need": "胡须、发丝、眼镜或手部遮挡",
+        "purpose": "局部边界和五官保护",
+        "status": "missing"
+      },
+      {
+        "id": "slot_15",
+        "need": "逆光、复杂背景、细发丝",
+        "purpose": "主体／背景与光照边缘",
+        "status": "missing"
+      },
+      {
+        "id": "slot_16",
+        "need": "多人与相似图案背景、连续拍摄组",
+        "purpose": "目标选择、跨照片一致性和近重复分组",
+        "status": "missing"
+      }
+    ],
+    "acquisition_policy": [
+      "只使用用户授权或具有明确测试用途许可的真实照片；不自动收集私人肖像。",
+      "登记照片来源、许可／同意范围、尺寸、ICC、拍摄组和问题标签。",
+      "年龄类别由用户或提供者填写；不从脸部自动推断。",
+      "同一人、同一拍摄组及近重复图归同一划分，避免调参和留出泄漏。",
+      "四类预设为通用、长者、成人、少年；通用是用途分类，不是年龄类别。",
+      "没有相应样本时诚实登记 missing，不能用合成变体代替真实覆盖。"
+    ]
+  },
+  "evaluation_protocol": {
+    "input_contract": [
+      "固定源文件及规范化输入 SHA256。",
+      "记录 EXIF 朝向、解码器、ICC 和尺寸。",
+      "局部对照共享相同主体 ROI、蒙版、人工保护及目标选择。"
+    ],
+    "output_contract": [
+      "保存算法／模型固定版本、参数、启用候选 ID、蒙版、操作版本与实际设备。",
+      "优先内部浮点串联；记录已有 8-bit 缓存引入的量化，不把它当作原生浮点结果。",
+      "保存无损全图和真实 1:1 裁切用于评审；缩略图不能作为唯一质量证据。"
+    ],
+    "comparison": [
+      "原片、现有基线、候选算法使用随机标签进行人工盲评。",
+      "同一张原片的不同输出按成对比较记录；不能当作增加样本数。",
+      "目标改善、身份／结构、纹理、肤色和范围外保留分别评分，不能汇总掩盖关键失败。",
+      "保留无作用、误修和失败结果，不只展示最好看的一张。"
+    ],
+    "excluded_quality_proxies": [
+      "改动像素更多",
+      "全脸平均改变量更大",
+      "无可靠目标图的 PSNR／SSIM",
+      "模型参数量",
+      "GitHub 星标数",
+      "权重文件大小"
+    ],
+    "operation_specific_checks": {
+      "local_repair": "最终合成范围外与保护核心逐像素恒等。",
+      "global_color": "允许全图 RGB 改变；检查形状、局部对比、肤色合理性及色彩管理。",
+      "geometry": "支持域外恒等；域内结构移动须符合用户显式操作。",
+      "generative": "身份、结构、纹理和环境保留必须单独人工检查，像素差不能单独判美观。"
+    },
+    "review_scale": {
+      "target_improvement": {
+        "0": "没有可见改善或变差",
+        "1": "轻微改善，目标问题仍明显",
+        "2": "清楚且有用的改善",
+        "3": "大部分目标问题得到自然改善",
+        "4": "达到约定的人工精修参考标准"
+      },
+      "preservation": {
+        "0": "严重误修或身份／环境变化",
+        "1": "明显纹理、颜色或结构损伤",
+        "2": "存在可见副作用，需要返工",
+        "3": "仅极轻微可接受差异",
+        "4": "未见非目标损伤"
+      },
+      "required_notes": "每个低于 3 的保留项必须记录具体位置与可复现条件；没有人工评审就不填主观分数。"
+    },
+    "zhijing_comparison": {
+      "status": "blocked_missing_reference",
+      "required": "同一授权原片、明确版本和操作设置下的质镜成片；保留用户定义的目标与可公开范围。",
+      "method": "相同色彩／尺寸下盲评全图与原生细节；分别记录局部收益、保真、可控性、耗时及失败。",
+      "current_claim": "未建立接近、达到或超过质镜的证据。"
+    }
+  },
+  "gates": [
+    {
+      "id": "g_source_integrity",
+      "label": "原片完整与可恢复",
+      "stage": "prototype",
+      "severity": "critical",
+      "method": [
+        "导入前后记录原文件 SHA256。",
+        "任何修补只生成独立状态／输出；原片文件不得覆盖。",
+        "候选全关、所有处理撤销后与统一解码的输入逐像素比较。"
+      ],
+      "pass": "原文件哈希不变；零操作结果逐字节等于统一解码基准。",
+      "evidence_ids": [
+        "ev_modelscope_trial"
+      ],
+      "status": "not_run",
+      "result_artifact": null
+    },
+    {
+      "id": "g_target_confirmation",
+      "label": "确认处理人物",
+      "stage": "prototype",
+      "severity": "critical",
+      "method": [
+        "使用已有真实人物、背景人物和花纹包误检案例。",
+        "确认主角后，对全部未选检测框及包区域作差分。",
+        "切换对象后检查候选、蒙版与处理状态归属。"
+      ],
+      "pass": "只处理确认的人物；包不被自动作为处理对象；所有未选区域在局部修补阶段零改动。",
+      "evidence_ids": [
+        "ev_false_face"
+      ],
+      "status": "not_run",
+      "result_artifact": null
+    },
+    {
+      "id": "g_candidates_off",
+      "label": "候选默认关闭",
+      "stage": "prototype",
+      "severity": "critical",
+      "method": [
+        "打开新照片或首次完成候选分析。",
+        "观察列表、画布标记和输出状态，读取已启用候选 ID 集合。"
+      ],
+      "pass": "首次启用集合为空；分析只显示候选，不自动改图；关闭全部候选可恢复源像素。",
+      "evidence_ids": [
+        "ev_modelscope_trial"
+      ],
+      "status": "not_run",
+      "result_artifact": null
+    },
+    {
+      "id": "g_candidate_semantics",
+      "label": "不把置信度当作去除许可",
+      "stage": "prototype",
+      "severity": "critical",
+      "method": [
+        "复用置信度 0.883 的褐色点失败例。",
+        "检查候选名称、说明、自动选择规则与任何强度预设。"
+      ],
+      "pass": "明确称为待确认瑕疵候选；不得仅因高置信度宣称为痘或自动消除痣／雀斑；用户可逐点保留。",
+      "evidence_ids": [
+        "ev_modelscope_trial",
+        "ev_combination_review"
+      ],
+      "status": "not_run",
+      "result_artifact": null
+    },
+    {
+      "id": "g_selected_only",
+      "label": "逐点修补范围",
+      "stage": "prototype",
+      "severity": "critical",
+      "method": [
+        "对每个候选分别单独启用，并保存选中 ID、最终合成蒙版与结果。",
+        "验证未选候选的独立区域；重叠候选按明确记录的合成顺序检查。",
+        "切换到其他照片后确认状态不会串图。"
+      ],
+      "pass": "图像变化仅在已选候选的最终合成范围；关闭某候选后，除与其他已选区域重叠外，该候选贡献被移除；状态不串图。",
+      "evidence_ids": [
+        "ev_modelscope_trial"
+      ],
+      "status": "not_run",
+      "result_artifact": null
+    },
+    {
+      "id": "g_local_scope",
+      "label": "局部合成与保护区",
+      "stage": "prototype_and_later",
+      "severity": "critical",
+      "method": [
+        "分别保留模型处理范围、去噪范围及最终合成范围。",
+        "对最终合成蒙版为 0、人工保护核心、主体 ROI 外像素作精确比较。",
+        "在眼唇、发丝、胡须、妆容与边界附近查看原生裁切。"
+      ],
+      "pass": "局部修补阶段合成范围外和保护核心零变化；边界无接缝或光晕。全图色彩及几何操作适用各自范围契约，不混用本条零变化要求。",
+      "evidence_ids": [
+        "ev_modelscope_trial",
+        "ev_combination_review"
+      ],
+      "status": "not_run",
+      "result_artifact": null
+    },
+    {
+      "id": "g_native_pixels",
+      "label": "原生分辨率画布",
+      "stage": "prototype",
+      "severity": "critical",
+      "method": [
+        "读取 source_width／source_height 与统一解码基准。",
+        "解码 level 0 瓦片，在角落、中心、末行／末列与主脸细节逐像素拼回对照。",
+        "记录 zoom、CSS 像素、devicePixelRatio 与显示尺寸关系。"
+      ],
+      "pass": "level 0 不先缩小再放大，RGB 像素与同色彩约定的源图一致；本原型 100% 定义为一图像像素对应一 CSS 像素，并说明高 DPI 下不是一物理屏幕像素；下采样层有独立 level 和尺寸。",
+      "evidence_ids": [],
+      "status": "not_run",
+      "result_artifact": null
+    },
+    {
+      "id": "g_tile_seams",
+      "label": "瓦片及异步状态连续",
+      "stage": "prototype",
+      "severity": "critical",
+      "method": [
+        "在多级缩放下沿瓦片边缘移动画布，包含宽高不能整除瓦片大小的照片。",
+        "快速缩放、切图和切换候选时记录请求版本与可见版本。"
+      ],
+      "pass": "无缺行、错位、重复边、接缝；旧照片或旧处理版本的异步响应不能覆盖当前状态；加载中有明确反馈。",
+      "evidence_ids": [],
+      "status": "not_run",
+      "result_artifact": null
+    },
+    {
+      "id": "g_pane_controls",
+      "label": "单框／双框与对照操作",
+      "stage": "prototype",
+      "severity": "major",
+      "method": [
+        "分别在单框、双框切换原图／滑动对比／处理结果。",
+        "两框独立选择模式，并验证同步缩放与平移开关。",
+        "鼠标停在某框内触发模式轮换快捷键；在框外或输入框中重复。",
+        "检查滑动对比线与轮滚缩放、缩放滑块及平移手势的冲突。"
+      ],
+      "pass": "每框拥有完整三种显示模式；轮换仅改变鼠标所在框，框外和输入字段不误触；同步时裁切与比例一致；比较线不改变图像内容。",
+      "evidence_ids": [],
+      "status": "not_run",
+      "result_artifact": null
+    },
+    {
+      "id": "g_history",
+      "label": "撤销、重做及状态反馈",
+      "stage": "prototype",
+      "severity": "critical",
+      "method": [
+        "启用／关闭候选，调整强度，再撤销和重做全部步骤。",
+        "对每个稳定步骤保存内容哈希和操作 ID。",
+        "模拟处理中、失败、取消、切图及晚到响应。"
+      ],
+      "pass": "一次完成的交互形成一个可理解的历史步骤；撤销／重做到相同状态时图像一致；处理状态与当前版本同步；失败不能标为已完成。原型会话是否持久化须明确，未实现时不得显示已保存项目。",
+      "evidence_ids": [],
+      "status": "not_run",
+      "result_artifact": null
+    },
+    {
+      "id": "g_preview_export",
+      "label": "最终预览与保留／导出一致",
+      "stage": "later",
+      "severity": "critical",
+      "method": [
+        "使用相同原片、操作序列、尺寸、色彩设置和处理版本。",
+        "对比最终预览使用的全分辨率结果与无损输出。",
+        "JPEG 另比较编码前缓冲与解码后有损差异，注明质量设置。"
+      ],
+      "pass": "无损输出与同设置最终结果一致；预览下采样只影响显示，不改变处理参数；保留／导出只能绑定已完成版本。JPEG 有损误差不能被误报为算法状态差异。",
+      "evidence_ids": [],
+      "status": "not_run",
+      "result_artifact": null
+    },
+    {
+      "id": "g_no_silent_fallback",
+      "label": "失败与硬件路径透明",
+      "stage": "prototype_and_later",
+      "severity": "critical",
+      "method": [
+        "模拟缺权重、哈希错、依赖不可用、GPU 不可用、显存不足与推理异常。",
+        "记录所请求算法、实际算法、设备及最终状态。"
+      ],
+      "pass": "明确指出不可用原因与可选恢复动作；不得静默换传统算法／CPU 后仍宣称原神经功能成功。用户选择替代方案后显示实际执行路径。",
+      "evidence_ids": [
+        "ev_model_manifest",
+        "ev_depth_manifest"
+      ],
+      "status": "not_run",
+      "result_artifact": null
+    },
+    {
+      "id": "g_texture_identity",
+      "label": "纹理、身份及结构保留",
+      "stage": "later",
+      "severity": "critical",
+      "method": [
+        "按预先登记的眼唇、发丝、毛孔、痣／雀斑、面部轮廓和服饰细节做原生对照。",
+        "全图与 1:1 裁切分别评审；记录误修、假纹理、糊化、色块和身份变化。",
+        "局部修肤、全图调色与有意几何调整按各自目标评分。"
+      ],
+      "pass": "普通修肤没有非用户要求的身份、几何、环境改变；没有明显纹理抹除或重画；受保护特征的形状、局部对比与可辨识性保留。全图调色可改变其 RGB，不能仅因此判失败。",
+      "evidence_ids": [
+        "ev_modelscope_trial",
+        "ev_combination_review"
+      ],
+      "status": "not_run",
+      "result_artifact": null
+    },
+    {
+      "id": "g_no_hidden_beauty",
+      "label": "预设不暗中改变审美目标",
+      "stage": "later",
+      "severity": "critical",
+      "method": [
+        "审查四类预设的完整步骤表、默认值和 UI 描述。",
+        "对中性输入、不同肤色、妆容与年龄特征输入逐一比对。"
+      ],
+      "pass": "普通修肤预设不默认改变脸型、年龄或进行强美白；分类由用户选择；每项功能、作用范围及强度可见且可单独撤销。",
+      "evidence_ids": [
+        "ev_modelscope_trial"
+      ],
+      "status": "not_run",
+      "result_artifact": null
+    },
+    {
+      "id": "g_color_contract",
+      "label": "色彩与精度约定",
+      "stage": "later",
+      "severity": "critical",
+      "method": [
+        "记录解码器、EXIF 朝向、ICC 输入／工作／输出色域及量化规则。",
+        "测试已标记 sRGB、有效广色域和缺少 ICC 的文件，明确回退解释。",
+        "检查处理链中间缓冲精度，区分全图调色与局部保护。"
+      ],
+      "pass": "同一输入在预览与导出使用一致颜色解释；无无说明的重复 8-bit 量化；全图调色保留结构与相对特征，局部操作遵守局部合成范围。",
+      "evidence_ids": [
+        "ev_color_research",
+        "ev_combination_review"
+      ],
+      "status": "not_run",
+      "result_artifact": null
+    },
+    {
+      "id": "g_quality_benefit",
+      "label": "功能具有可见收益",
+      "stage": "later",
+      "severity": "major",
+      "method": [
+        "在适用且未用于调参的样本上随机化显示原片、现有基线和候选流程。",
+        "由至少两位人工评审独立打分；评审记录原话及目标瑕疵。",
+        "对不同功能分别评分，不以全脸均值掩盖点修收益。"
+      ],
+      "pass": "按拟定试运行标准，至少 80% 适用留出样本的目标改善分中位数达到 2/4，且任一关键保护项无严重失败；样本数、分歧及全部失败例公开记录。此门槛是待评审的项目目标，不是已达到结果。",
+      "evidence_ids": [
+        "ev_modelscope_trial",
+        "ev_combination_review"
+      ],
+      "status": "not_run",
+      "result_artifact": null
+    },
+    {
+      "id": "g_sample_coverage",
+      "label": "真实样本与泛化边界",
+      "stage": "later",
+      "severity": "major",
+      "method": [
+        "核对每张原片的来源许可、独立拍摄 ID、主体组 ID 和调参／留出划分。",
+        "核对问题类型、肤色、光线、妆容、遮挡和用户选择年龄类别的覆盖。",
+        "检查同一原片裁切、亮度变体及同主体近重复是否错误跨组。"
+      ],
+      "pass": "首轮至少 16 张获授权的独立原片，拟定 8 张调参／8 张留出；同主体和近重复归同一组。每项要宣称通用的功能至少 4 张适用留出原片，否则只能标有限试验；一张图及其变体不能算多样本。",
+      "evidence_ids": [
+        "ev_modelscope_trial"
+      ],
+      "status": "not_run",
+      "result_artifact": null
+    },
+    {
+      "id": "g_relighting_contract",
+      "label": "重布光用途与所见即所得",
+      "stage": "later",
+      "severity": "critical",
+      "method": [
+        "对同一设置记录拖动预览、最终预览、保留与导出的算法及版本。",
+        "分别测试主体、背景及过渡边界。",
+        "检查旧光照、高光、遮挡阴影、身份和环境变化。"
+      ],
+      "pass": "保真调整不得暗中切入生成；近似交互预览明确标识，最终预览确认后保留／导出同一结果；变化必须符合选定范围，无法实现物理效果时不宣称物理准确。",
+      "evidence_ids": [
+        "ev_depth_manifest",
+        "ev_model_manifest",
+        "ev_candidate_catalog"
+      ],
+      "status": "not_run",
+      "result_artifact": null
+    },
+    {
+      "id": "g_geometry_scope",
+      "label": "脸型微调范围与恢复",
+      "stage": "later",
+      "severity": "critical",
+      "method": [
+        "测试正脸、侧脸、遮挡、耳饰、发丝和直线背景。",
+        "对零强度、正负边界、左右单独调整、重复撤销及支持域外像素作验证。"
+      ],
+      "pass": "零强度精确恒等；支持域外零变化；支持域与邻近区域移动有可视提示；无折叠、断裂或不可恢复变形；强度限制以真实样本确定。",
+      "evidence_ids": [
+        "ev_face_shape_source"
+      ],
+      "status": "not_run",
+      "result_artifact": null
+    },
+    {
+      "id": "g_license_provenance",
+      "label": "代码与模型授权可追溯",
+      "stage": "before_distribution",
+      "severity": "critical",
+      "method": [
+        "逐组件核对代码 revision、权重 revision、文件 SHA256、来源、基础依赖及许可原文。",
+        "区别代码许可、权重许可、训练数据条款与照片使用许可。"
+      ],
+      "pass": "每项进入分发的代码和权重均有适用许可与必要通知；未明确授权的权重不随包发布；非商用研究条款被清晰保留，不能因为本项目不商用而忽略。",
+      "evidence_ids": [
+        "ev_model_manifest",
+        "ev_depth_manifest",
+        "ev_candidate_catalog",
+        "ev_color_research"
+      ],
+      "status": "not_run",
+      "result_artifact": null
+    },
+    {
+      "id": "g_hardware",
+      "label": "真实设备与降级路径",
+      "stage": "before_distribution",
+      "severity": "critical",
+      "method": [
+        "在实际 RTX 4070 Ti 12GB 与 CPU 机器上测定每项已公开功能。",
+        "分别记录冷加载、热推理、完整合成／编码／显示时间及进程 RAM、GPU VRAM 和驱动版本。",
+        "使用 24–40MP 代表照片、多人图和无开发环境的 Windows 机器。"
+      ],
+      "pass": "写明每项功能实际可用设备、性能范围与失败行为；未在 12GB 设备测试前不得标为已验证支持；CPU 基础查看、传统修片及导出可用，神经功能可用性单独标注。",
+      "evidence_ids": [
+        "ev_modelscope_trial"
+      ],
+      "status": "not_run",
+      "result_artifact": null
+    },
+    {
+      "id": "g_cache_latency",
+      "label": "候选切换反馈",
+      "stage": "prototype",
+      "severity": "major",
+      "method": [
+        "分开记录推理首次准备与已缓存候选的切换。",
+        "在明确设备、照片尺寸和缓存状态下完成至少 30 次有效切换，统计端到端 p50／p95。"
+      ],
+      "pass": "拟定目标：缓存候选切换到正确画面热态 p95 ≤ 500ms；同时显示状态，旧响应不能覆盖新操作。该指标不承诺首次推理 500ms。",
+      "evidence_ids": [],
+      "status": "not_run",
+      "result_artifact": null
+    },
+    {
+      "id": "g_gesture_feedback",
+      "label": "笔刷与几何手势反馈",
+      "stage": "later",
+      "severity": "major",
+      "method": [
+        "记录连续至少 10 秒实际笔刷／几何手势帧时间，并分别测最终计算时间。",
+        "检查视觉反馈、命中区域和撤销步骤。"
+      ],
+      "pass": "拟定目标：手势反馈至少 30fps，p95 帧时间 ≤ 33.3ms；如使用低精度交互预览则有明确标识。神经推理不被宣称逐帧执行。",
+      "evidence_ids": [],
+      "status": "not_run",
+      "result_artifact": null
+    },
+    {
+      "id": "g_distribution_privacy",
+      "label": "试验资料与公开产物分离",
+      "stage": "before_distribution",
+      "severity": "critical",
+      "method": [
+        "扫描待分发内容，核对原片、裁切、生成结果、模型文件、缓存和本地路径。",
+        "核对照片来源及允许的使用范围。"
+      ],
+      "pass": "内部测试授权不被扩大为公开传播授权；未经明确许可的用户照片、衍生图及测试缓存不得公开，权重按具体授权决定；此计划的本地绝对路径须在公开版本中去除或转换。",
+      "evidence_ids": [],
+      "status": "not_run",
+      "result_artifact": null
+    }
+  ],
+  "performance_targets": {
+    "status": "proposed_not_measured_for_v2",
+    "patch_toggle": {
+      "conditions": "候选及修补结果已缓存，明确照片尺寸和设备",
+      "actions": 30,
+      "p95_ms": 500
+    },
+    "gesture_feedback": {
+      "later_phase": true,
+      "minimum_fps": 30,
+      "p95_frame_ms": 33.3,
+      "note": "指交互显示；不承诺神经推理逐帧完成。"
+    },
+    "benchmark_images": "24–40MP 真实照片，包含单人和多人；记录实际处理 ROI。",
+    "separately_report": [
+      "模型加载",
+      "冷首次推理",
+      "热推理",
+      "分块／合成",
+      "编码",
+      "UI 到正确画面端到端",
+      "进程 RAM 峰值",
+      "GPU 总体显存峰值",
+      "PyTorch allocated／reserved（如适用）"
+    ],
+    "known_observation": {
+      "evidence_id": "ev_modelscope_trial",
+      "gpu": "RTX 5060 Ti 16GB",
+      "warm_local_roi_seconds": 0.91,
+      "torch_peak_allocated_mib": 833,
+      "torch_peak_reserved_mib": 1278,
+      "limitations": "历史单张主脸 ROI 与三个网络，不是 V2 整体性能；不是最低显存、CPU 或 RTX 4070 Ti 12GB 验证。"
+    },
+    "target_device": {
+      "name": "RTX 4070 Ti 12GB",
+      "status": "not_tested"
+    },
+    "cpu_requirement": "基本查看、传统修片和导出须保持可用；神经功能分别测量，不能静默回退。"
+  },
+  "decision_policy": {
+    "prototype_acceptance": "prototype 阶段的 critical 门槛全部通过；major 门槛逐项记录结果与已知限制。原型验收不等于预设质量或公开发布验收。",
+    "quality_acceptance": "所有适用 critical 门槛通过，留出样本达到 g_quality_benefit 与 g_sample_coverage；否则维持研究／有限试验状态。",
+    "distribution_acceptance": "额外完成许可、隐私、12GB／CPU／干净 Windows 部署与端到端导出验收，并由用户明确授权发布。",
+    "critical_failure": "任一身份变化、未选区域误修、原片覆盖、未授权内容发布或伪报成功均阻止对应功能进入默认可用状态。",
+    "results_storage": "后续将实测结果写到独立的 acceptance-results 文件，引用本计划 gate ID、版本、输入哈希与证据路径；不覆盖本计划来伪造通过。",
+    "current_decision": "没有任何 V2 门槛在本文件中被标为已通过。"
+  }
+}

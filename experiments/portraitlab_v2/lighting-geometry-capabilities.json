@@ -1,0 +1,126 @@
+{
+  "schema": 1,
+  "date": "2026-11-15",
+  "status": "implemented_pending_validation",
+  "scope": "Independent PortraitLab V2 lighting and geometry modules; installed software is unchanged.",
+  "validation": {
+    "python_ast": "passed",
+    "module_import": "passed_in_development_python",
+    "inference": "not_run_by_this_branch",
+    "functional": "35_model_free_contract_tests_passed",
+    "visual": "not_run_by_this_branch",
+    "performance": "not_run_by_this_branch",
+    "reason": "The coordinator confirmed all features were implemented and started unified validation before these tests ran.",
+    "functional_report": "private-research/work/v2-final/tests/geometry/junit-mask-culling.xml",
+    "functional_scope": "Synthetic-field native-tile identity, float preservation, light control response, coordinate mapping, failure contracts, geometry-support culling and exact zero-coverage lighting culling against the original calculation; no real model or real-photo quality claim.",
+    "evidence_limits": [
+      "The current real-photo evidence contains one independent original.",
+      "No matched Zhijing result is available for that original.",
+      "4070 Ti 12 GB performance and compatibility have not been verified.",
+      "Implementation status does not establish professional retouching quality or superiority to another product."
+    ]
+  },
+  "lighting": {
+    "module": "lighting_v2.py",
+    "algorithm": "portraitlab-v2-subject-background-lighting-1",
+    "features": [
+      "Independent subject and background groups with complementary masks",
+      "Up to four directional, point, spot or area lights per group",
+      "Light position, direction, intensity, colour temperature, radius and softness",
+      "Spotlight beam angle and target position",
+      "Canvas-handle position helpers, including directional angle updates",
+      "Group ambient gain and overall adjustment strength",
+      "Native-resolution region rendering and float linear-RGB composition",
+      "Explicit local depth-model preparation with model hash verification"
+    ],
+    "presets": [
+      {"id": "soft", "name": "清晖柔光"},
+      {"id": "window", "name": "临窗清光"},
+      {"id": "side", "name": "侧光塑形"},
+      {"id": "rembrandt", "name": "伦勃朗光向"},
+      {"id": "butterfly", "name": "蝶形柔光"},
+      {"id": "clamshell", "name": "上下映光"},
+      {"id": "rim", "name": "轮廓微光"},
+      {"id": "warmcool", "name": "冷暖相映"},
+      {"id": "golden", "name": "暮色斜照"},
+      {"id": "spot", "name": "聚光留影"},
+      {"id": "lowkey", "name": "幽光侧影"},
+      {"id": "balanced", "name": "素光匀照"}
+    ],
+    "model": {
+      "name": "Depth Anything V2 Small",
+      "purpose": "Relative depth; surface normals are derived from depth rather than inferred by a separate normal model.",
+      "local_weight": "lighting/depth_anything_v2_vits.pth",
+      "sha256": "715fade13be8f229f8a70cc02066f656f2423a59effd0579197bbf57860e1378",
+      "code_revision": "a561b849ebae10a6f5ef49e26c83cbbcd36c71bf",
+      "weight_revision": "03876f8651c73a60fe4c2c48294e09fcb6838fcf",
+      "license": "Apache-2.0 for the pinned code and Small weights only",
+      "downloads": "none",
+      "preparation_devices": ["cpu", "cuda", "auto"],
+      "explicit_cuda_unavailable": "error",
+      "inference_error_fallback": "none",
+      "final_renderer_device": "CPU"
+    },
+    "subject_mask": {
+      "input": "Genuine background probabilities from the existing person-part segmentation model",
+      "fallback": "No substitution of a face mask or synthetic segmentation",
+      "required_for_rendering": true
+    },
+    "coordinate_contract": {
+      "bounds": "Native-image half-open integer [x0,y0,x1,y1]",
+      "image_size": "(width,height)",
+      "handles": "Normalized image coordinates with aspect-aware directional projection",
+      "light_radius": "Point/spot attenuation reach or area-emitter size; directional radius does not affect shading"
+    },
+    "limitations": [
+      "This is a deterministic image adjustment, not generative image synthesis or physical inverse rendering.",
+      "Single-view relative depth and its derived normals cannot recover true material reflectance or complete scene geometry.",
+      "Existing illumination and baked-in shadows remain; clipped source detail cannot be reconstructed.",
+      "True cast shadows, occlusion and physically accurate rim or Rembrandt shadows are not generated.",
+      "Mask and estimated-geometry errors can affect hair, fine edges and unusual scenes.",
+      "CPU rendering and CUDA depth preparation are distinct operations; immediate interactive latency is not yet measured.",
+      "Preset appearance and strength require the unified visual review."
+    ]
+  },
+  "geometry": {
+    "module": "geometry_v2.py",
+    "algorithm": "portraitlab-v2-compact-geometry-1",
+    "features": [
+      "Left/right face width, cheek and jaw controls",
+      "Chin length and width controls",
+      "Forehead height and width controls",
+      "Manual push and local restore strokes",
+      "Local protection circles and image-edge taper",
+      "Compact-support inverse sampling with one interpolation stage",
+      "Native-size tiled reading, preserving float source values"
+    ],
+    "dependencies": {
+      "face_controls": "Existing real face-landmark arrays; missing required landmarks raise an error",
+      "manual_push_restore": "No model required",
+      "new_models": "none",
+      "renderer_device": "CPU"
+    },
+    "coordinate_contract": {
+      "point_normalization": "Pixel centres normalized by (width-1,height-1)",
+      "brush_radius": "Fraction of the shorter image edge",
+      "manual_strokes": "Displayed-image coordinates at gesture time; do not forward-project the stroke centre again",
+      "protection_circles": "Displayed-image coordinates",
+      "face_anchors": "Original normalized landmarks projected through preceding face operations",
+      "parameter_direction": "Positive widens or lengthens; positive forehead height moves upward",
+      "callable_source": "Requires explicit image_size=(width,height)"
+    },
+    "bounds_and_feedback": {
+      "single_push": "Displacement limited to 20 percent of the support radius",
+      "clamp_feedback": "build_operations metadata contains stroke_clamps and warnings",
+      "protection_core": "Inner 60 percent exactly protected; outer 40 percent smoothly blended",
+      "state_owner": "The workspace owns history, drafts, atomic commits and user-visible feedback"
+    },
+    "limitations": [
+      "This is local 2D deformation, not 3D anatomical reconstruction or identity-aware synthesis.",
+      "Hair and background inside the support region may move with the face.",
+      "Strong accumulated edits can look unnatural and require visual review.",
+      "Overlay forward mapping can reject excessive deformation if inversion fails to converge.",
+      "Tile/export consistency is an implementation contract pending unified validation."
+    ]
+  }
+}

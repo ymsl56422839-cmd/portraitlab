@@ -1,0 +1,62 @@
+{
+  "reviewed_on": "2026-11-15",
+  "source_pages": [
+    "https://ai.google.dev/edge/mediapipe/solutions/vision/face_landmarker",
+    "https://ai.google.dev/edge/mediapipe/solutions/vision/image_segmenter"
+  ],
+  "method": "The official task-page model tables link these model cards. Each card states the model license on page 1. The latest weight URLs linked by the same tables were downloaded and SHA256 matched against the fixed version-1 artifacts below. This evidence is independent of documentation footer code-sample licensing.",
+  "cards": [
+    {
+      "file": "MediaPipe-BlazeFace-Model-Card.pdf",
+      "url": "https://storage.googleapis.com/mediapipe-assets/MediaPipe%20BlazeFace%20Model%20Card%20(Short%20Range).pdf",
+      "sha256": "cd335c06fc0de7807cd815a0777a697932598bcdb28fa98adaaabf847485f758",
+      "license_statement": "LICENSED UNDER Apache License, Version 2.0",
+      "statement_page": 1
+    },
+    {
+      "file": "MediaPipe-Face-Mesh-V2-Model-Card.pdf",
+      "url": "https://storage.googleapis.com/mediapipe-assets/Model%20Card%20MediaPipe%20Face%20Mesh%20V2.pdf",
+      "sha256": "c6add060f4ebfb37b2690136b6c711c7e5fcb7038baa2649ae3338b83979565a",
+      "license_statement": "LICENSED UNDER Apache License, Version 2.0",
+      "statement_page": 1
+    },
+    {
+      "file": "MediaPipe-Blendshape-V2-Model-Card.pdf",
+      "url": "https://storage.googleapis.com/mediapipe-assets/Model%20Card%20Blendshape%20V2.pdf",
+      "sha256": "c8e9cf60a39998f4b341740623917590e050d1c97004e2de4568d84e026445ae",
+      "license_statement": "LICENSED UNDER Apache License, Version 2.0",
+      "statement_page": 1
+    },
+    {
+      "file": "MediaPipe-Multiclass-Segmentation-Model-Card.pdf",
+      "url": "https://storage.googleapis.com/mediapipe-assets/Model%20Card%20Multiclass%20Segmentation.pdf",
+      "sha256": "59372fce0666d4c75b3877540fa77f80ac4b2a0f75e914711417f85fc490a9e6",
+      "license_statement": "LICENSED UNDER Apache License, Version 2.0",
+      "statement_page": 1
+    }
+  ],
+  "models": [
+    {
+      "file": "face_landmarker.task",
+      "fixed_url": "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
+      "latest_url_checked": "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task",
+      "sha256": "64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff",
+      "license": "Apache-2.0",
+      "model_cards": [
+        "MediaPipe-BlazeFace-Model-Card.pdf",
+        "MediaPipe-Face-Mesh-V2-Model-Card.pdf",
+        "MediaPipe-Blendshape-V2-Model-Card.pdf"
+      ]
+    },
+    {
+      "file": "selfie_multiclass_256x256.tflite",
+      "fixed_url": "https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_multiclass_256x256/float32/1/selfie_multiclass_256x256.tflite",
+      "latest_url_checked": "https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_multiclass_256x256/float32/latest/selfie_multiclass_256x256.tflite",
+      "sha256": "c6748b1253a99067ef71f7e26ca71096cd449baefa8f101900ea23016507e0e0",
+      "license": "Apache-2.0",
+      "model_cards": [
+        "MediaPipe-Multiclass-Segmentation-Model-Card.pdf"
+      ]
+    }
+  ]
+}

@@ -1,7 +1,7 @@
-"""Curated classic recipes; all effects use the existing PortraitLab engine.
+"""Scoped recipes for the portrait processing pipeline.
 
 SPDX-License-Identifier: AGPL-3.0-only
-Recipes are starting points, not promises of a particular face or skin result.
+Recipes describe operations; preset_pipeline resolves them against each photo.
 """
 from __future__ import annotations
 
@@ -33,12 +33,75 @@ NEUTRAL = {
     "saturation": 1.0, "opacity": 1.0,
 }
 
+PARAMETER_GROUPS = {
+    "skin": ("smooth", "blemishes", "even", "acne", "acne_sensitivity", "texture", "region"),
+    "light": ("exposure", "relight"),
+    "color": ("warmth", "saturation"),
+}
+GROUP_LABELS = {"skin": "修肤", "light": "明暗", "color": "色彩"}
+_ADAPTIVE = {
+    "auto_balance": "balance", "dim_scene": "lift", "lower_exposure": "protect_highlights",
+    "face_bright": "face_lift", "backlight": "backlight", "face_dim": "face_reduce",
+    "senior_soft_fill": "face_lift", "senior_backlit": "backlight",
+    "senior_light_balance": "face_reduce", "adult_lowlight": "backlight",
+    "adult_outdoor": "face_reduce", "youth_school": "face_lift",
+    "youth_outdoor": "face_lift", "youth_backlight": "backlight",
+}
+
+# These recipes used to silently change controls from other editing sections.
+# Their descriptions now describe only the operations that will be applied.
+_SCOPED_DESCRIPTIONS = {
+    "face_bright": "按面部明暗自适应补光，保留已有全图曝光；需检测到人脸。",
+    "backlight": "按面部亮度补光，限制高光区域增亮；保留修肤和色彩。",
+    "dim_scene": "按照片或框选区域的亮度提曝光，高光不足时自动限制增亮。",
+    "lower_exposure": "按亮部与中间调降低曝光；纯白区域中丢失的细节无法恢复。",
+    "face_dim": "按面部亮度减少局部曝光，保留已有全图曝光。",
+    "warm_portrait": "温和暖色与轻度降饱和，保留已有修肤和明暗调整。",
+    "cool_clean": "偏冷与轻度降饱和，保留已有修肤和明暗调整。",
+    "vivid_color": "提高色彩饱和度，保留已有曝光；请放大检查肤色。",
+    "warm_muted": "暖色与低饱和组合，保留已有明暗和肤质。",
+    "monochrome": "转换为黑白，保留已有曝光和修肤。",
+    "senior_soft_fill": "按面部亮度轻补光，保留皱纹与原有修肤设置。",
+    "senior_backlit": "按面部与环境亮度补脸，限制全图增亮幅度。",
+    "senior_light_balance": "按亮部与面部明暗减光，保留皮肤纹理。",
+    "senior_warm_family": "温和暖色与少量降饱和，保留肤质和曝光。",
+    "senior_cold_cast": "为偏冷照片增加温和暖色，保留曝光和修肤。",
+    "senior_soft_color": "轻暖低饱和，适合柔和纪实氛围；保留曝光。",
+    "senior_monochrome": "转换为纪实黑白，保留皱纹、斑点与明暗。",
+    "adult_document": "轻修肤色与独立瑕疵，保留当前明暗和全图色彩。",
+    "adult_office": "适度均匀肤色、轻柔肤质，保留已有明暗和色调。",
+    "adult_lowlight": "按环境与面部亮度补光，高光不足时限制全图曝光。",
+    "adult_outdoor": "按面部亮度轻压过亮区域，保留已有肤色与全图曝光。",
+    "adult_monochrome": "转换为沉静黑白，保留已调整的曝光与肤质。",
+    "youth_school": "按面部亮度轻补光，保留皮肤纹理与色彩。",
+    "youth_outdoor": "按面部和环境亮度轻补光，保留全图色彩。",
+    "youth_backlight": "按面部亮度补逆光，保留皮肤纹理与色彩。",
+    "youth_warm": "温和暖色与少量增饱和，不改变曝光或肤质。",
+    "youth_clean_color": "少量偏冷与降饱和，保留曝光和肤质。",
+}
+
 
 def _recipe(identifier, name, category, description, tags, *, featured=False, portrait_group="general", **params):
+    if identifier == "original":
+        groups, keys = list(PARAMETER_GROUPS), list(NEUTRAL)
+        resolved = dict(NEUTRAL)
+    else:
+        group = "skin" if category in ("retouch", "body") else "light" if category == "light" else "color"
+        groups = [group]
+        # A face-light operation must not erase an existing global exposure.
+        keys = [key for key in PARAMETER_GROUPS[group] if group != "light" or key in params]
+        resolved = {**NEUTRAL, **{key: value for key, value in params.items() if key in keys},
+                    "opacity": params.get("opacity", 1.0)}
+    adaptive = _ADAPTIVE.get(identifier, False)
     return {"id": identifier, "name": name, "category": category,
             "portrait_group": portrait_group,
-            "description": description, "tags": tags, "featured": featured,
-            "builtin": True, "params": validate_params({**NEUTRAL, **params})}
+            "description": _SCOPED_DESCRIPTIONS.get(identifier, description), "tags": tags, "featured": featured,
+            "builtin": True, "params": validate_params(resolved), "apply_mode": "scoped",
+            "alias_of": "monochrome" if identifier in ("senior_monochrome", "adult_monochrome") else None,
+            "apply_groups": groups, "apply_keys": keys, "adaptive": adaptive,
+            "operations": [{"id": group, "label": GROUP_LABELS[group],
+                            "keys": [key for key in keys if key in PARAMETER_GROUPS[group]],
+                            "adaptive": adaptive if group == "light" else False} for group in groups]}
 
 
 BUILTIN_PRESETS = (
@@ -84,14 +147,13 @@ BUILTIN_PRESETS = (
             smooth=.22, blemishes=.18, even=.18, texture=.08, region="skin", opacity=.75),
     _recipe("body_even", "裸露皮肤均匀", "body", "重点均匀面部与身体皮肤色彩，不改变衣服或背景的色调。", ["身体", "肤色", "均匀"],
             smooth=.12, blemishes=.12, even=.42, texture=.04, region="skin", opacity=.80),
-    _recipe("original", "原图", "basic", "关闭当前编辑范围的调整，保留另一范围与保护笔刷记录。", ["原图", "重置", "对比"],
-            opacity=0.0),
+    _recipe("original", "重置修片", "basic", "清空当前范围的修肤、明暗与色彩，之后拖动滑块立即生效。", ["原图", "重置", "对比"]),
     _recipe("acne_gentle", "去痘·轻度", "retouch", "轻修识别到的独立面部痘点；可先框选，保护痣和雀斑。", ["去痘", "痘点", "局部", "轻修"],
-            featured=True, acne=.20),
-    _recipe("acne_standard", "去痘·标准", "retouch", "适度修复识别到的独立痘点，不增加磨皮；建议放大检查。", ["去痘", "痘点", "局部"],
-            featured=True, acne=.50),
-    _recipe("acne_strong", "去痘·加强", "retouch", "加强已识别痘点的修复强度，不增加检测范围；可框选限制处理。", ["去痘", "痘点", "局部", "加强"],
-            acne=.80),
+            featured=True, acne=.20, acne_sensitivity=.35),
+    _recipe("acne_standard", "去痘·标准", "retouch", "标准检测灵敏度与适度修复强度，不增加磨皮；建议放大检查。", ["去痘", "痘点", "局部"],
+            featured=True, acne=.50, acne_sensitivity=.50),
+    _recipe("acne_strong", "去痘·加强", "retouch", "提高痘点检测灵敏度与修复强度；可框选限制处理，注意保护痣与雀斑。", ["去痘", "痘点", "局部", "加强"],
+            acne=.80, acne_sensitivity=.70),
     _recipe("local_even_skin", "局部肤色整理", "retouch", "建议先框选色差区域再应用；未框选时整理自动面部皮肤选区。", ["局部", "肤色", "色差", "框选"],
             even=.28, opacity=.90),
     _recipe("senior_true", "长者真实肤质", "retouch", "仅轻整肤色，不柔化皱纹、毛孔或自动修复斑点。", ["长者", "真实", "肤色"],
@@ -146,6 +208,8 @@ BUILTIN_PRESETS = (
             portrait_group="youth", acne=.25),
     _recipe("youth_acne_even", "少年痘点轻匀肤", "retouch", "适度修复独立痘点并轻整肤色，不叠加磨皮。", ["少年", "去痘", "肤色", "局部"],
             portrait_group="youth", acne=.40, even=.08, opacity=.90),
+    _recipe("auto_balance", "自然明暗", "light", "按原片中间调与高光余量整理曝光；框选后只分析选区。", ["自动", "曝光", "明暗", "自适应"],
+            featured=True, exposure=0.0),
 )
 BUILTIN_IDS = frozenset(preset["id"] for preset in BUILTIN_PRESETS)
 
@@ -178,4 +242,7 @@ def custom_payload(data):
 
 def custom_record(identifier, data):
     return {"id": identifier, **custom_payload(data), "category": "mine", "builtin": False,
-            "tags": ["自定义"], "featured": False}
+            "tags": ["自定义"], "featured": False, "apply_mode": "snapshot",
+            "apply_groups": list(PARAMETER_GROUPS), "apply_keys": list(NEUTRAL), "adaptive": False,
+            "operations": [{"id": group, "label": GROUP_LABELS[group], "keys": list(keys), "adaptive": False}
+                           for group, keys in PARAMETER_GROUPS.items()]}
